@@ -1,47 +1,72 @@
-version: "3.8"
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: smartcampus_DB
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: smartuser
-      POSTGRES_PASSWORD: smartpassword
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartpassword}
       POSTGRES_DB: smartcampus_DB
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartuser -d smartcampus_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: smartcampus_BACK
-    restart: always
+    build: ./backend
+    restart: unless-stopped
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://smartuser:smartpassword@postgres:5432/smartcampus_DB
+      DATABASE_URL: postgresql://smartuser:${POSTGRES_PASSWORD:-smartpassword}@postgres:5432/smartcampus_DB
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-this-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5174,http://127.0.0.1:5174}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-DemoCampus2026!}
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-catalogue}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-60}
     volumes:
       - ./backend:/app
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: smartcampus_FRONT
-    restart: always
+    build: ./frontend
+    restart: unless-stopped
     ports:
       - "5174:5173"
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+      VITE_API_URL: ""
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+  # Optional: docker compose --profile ai up -d
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
 
 volumes:
   postgres_data:
+  frontend_node_modules:
+  ollama_data:

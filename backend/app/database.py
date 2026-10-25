@@ -1,21 +1,33 @@
-import os
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
+from .config import DATABASE_URL
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://smartuser:smartpassword@postgres:5432/smartcampus_DB"
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args=(
+        {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    ),
 )
+if DATABASE_URL.startswith("sqlite"):
 
-engine = create_engine(DATABASE_URL)
+    @event.listens_for(engine, "connect")
+    def enable_foreign_keys(connection, _):
+        connection.execute("PRAGMA foreign_keys=ON")
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

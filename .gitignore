@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+frontend_backup/
+node_modules/
+.env
+frontend_nested_old/
+
+# Runtime databases are initialized by migrations, never distributed.
+*.db
+*.sqlite
+*.sqlite3
