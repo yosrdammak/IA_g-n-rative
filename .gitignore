@@ -221,3 +221,4 @@ __marimo__/
 frontend_backup/
 node_modules/
 .env
+frontend_nested_old/
