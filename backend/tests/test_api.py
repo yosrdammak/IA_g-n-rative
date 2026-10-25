@@ -136,7 +136,13 @@ def test_profile_recommendations_and_invalid_language(client, candidate):
     assert (
         client.put("/api/profile", headers=candidate, json=payload).status_code == 200
     )
-    assert client.get("/api/profile", headers=candidate).json() == payload
+    assert client.get("/api/profile", headers=candidate).json() == {
+        **payload,
+        "bac_section": None,
+        "bac_year": None,
+        "bac_average": None,
+        "subject_grades": {},
+    }
     ranked = client.get("/api/recommendations", headers=candidate).json()[
         "recommendations"
     ]
@@ -146,6 +152,121 @@ def test_profile_recommendations_and_invalid_language(client, candidate):
     payload["preferred_language"] = "unsupported"
     assert (
         client.put("/api/profile", headers=candidate, json=payload).status_code == 422
+    )
+
+
+ACADEMIC = {
+    "interests": "informatique intelligence artificielle",
+    "bac_section": "mathematiques",
+    "bac_year": 2026,
+    "bac_average": 14.256,
+    "subject_grades": {"mathematiques": 16, "informatique": 17.5, "physique": 8},
+}
+
+
+def recommended(client, headers):
+    return client.get("/api/recommendations", headers=headers).json()
+
+
+def test_bac_profile_saved_and_validated(client, candidate):
+    response = client.put("/api/profile", headers=candidate, json=ACADEMIC)
+    assert response.status_code == 200, response.text
+    profile = client.get("/api/profile", headers=candidate).json()
+    assert profile["bac_section"] == "mathematiques"
+    assert profile["bac_year"] == 2026
+    assert profile["bac_average"] == 14.26
+    assert profile["subject_grades"] == ACADEMIC["subject_grades"]
+    for invalid in (
+        {"bac_section": "astrologie"},
+        {"bac_average": 21},
+        {"bac_average": -1},
+        {"bac_year": 1900},
+        {"bac_year": datetime.now(timezone.utc).year + 5},
+        {"subject_grades": {"cuisine": 12}},
+        {"subject_grades": {"mathematiques": 25}},
+    ):
+        assert (
+            client.put(
+                "/api/profile", headers=candidate, json={**ACADEMIC, **invalid}
+            ).status_code
+            == 422
+        ), invalid
+    options = client.get("/api/profile/options").json()
+    assert {"value": "mathematiques", "label": "Mathématiques"} in options[
+        "bac_sections"
+    ]
+    assert any(s["value"] == "physique" for s in options["subjects"])
+
+
+def test_recommendations_respect_bac_level(client, candidate):
+    data = recommended(client, candidate)
+    assert set(data["missing_profile_fields"]) == {
+        "section du bac",
+        "moyenne du bac",
+        "notes par matière",
+    }
+    # Lettres : sections non acceptées par les parcours scientifiques et finance.
+    client.put(
+        "/api/profile",
+        headers=candidate,
+        json={**ACADEMIC, "bac_section": "lettres", "bac_average": 15},
+    )
+    data = recommended(client, candidate)
+    names = [r["program"]["name"] for r in data["recommendations"]]
+    assert names == ["[Démo] Licence en management"]
+    assert len(data["excluded"]) == 3
+    assert all("Lettres" in e["reasons"][0] for e in data["excluded"])
+    # Moyenne sous le seuil indicatif de 12.
+    client.put(
+        "/api/profile", headers=candidate, json={**ACADEMIC, "bac_average": 11}
+    )
+    data = recommended(client, candidate)
+    excluded = {e["program"]["name"]: e["reasons"] for e in data["excluded"]}
+    assert "[Démo] Génie logiciel et IA" in excluded
+    assert "11/20" in excluded["[Démo] Génie logiciel et IA"][0]
+    assert all(r["eligible"] for r in data["recommendations"])
+
+
+def test_recommendations_use_subject_strengths(client, candidate):
+    client.put("/api/profile", headers=candidate, json=ACADEMIC)
+    data = recommended(client, candidate)
+    assert data["missing_profile_fields"] == []
+    top = data["recommendations"][0]
+    assert "logiciel" in top["program"]["name"]
+    assert top["strengths"] == ["Informatique", "Mathématiques"]
+    assert top["weaknesses"] == ["Sciences physiques"]
+    assert top["score"] == sum(top["breakdown"].values())
+    assert top["breakdown"]["subjects"] == round(40 * (16 + 17.5 + 8) / 3 / 20)
+    # Mêmes intérêts, meilleures notes => meilleure compatibilité.
+    before = top["score"]
+    client.put(
+        "/api/profile",
+        headers=candidate,
+        json={**ACADEMIC, "subject_grades": {"mathematiques": 19, "informatique": 19, "physique": 18}},
+    )
+    after = recommended(client, candidate)["recommendations"][0]
+    assert after["program"]["id"] == top["program"]["id"]
+    assert after["score"] > before
+    assert after["weaknesses"] == []
+
+
+def test_admin_program_selection_criteria(client, admin):
+    payload = {
+        "name": "Parcours critères",
+        "institution": "IIT",
+        "category": "Licence",
+        "accepted_bac_sections": ["informatique"],
+        "min_average": 13,
+        "key_subjects": ["informatique"],
+    }
+    response = client.post("/api/admin/programs", headers=admin, json=payload)
+    assert response.status_code == 201, response.text
+    assert response.json()["accepted_bac_sections"] == ["informatique"]
+    assert response.json()["min_average"] == 13
+    payload["key_subjects"] = ["inconnue"]
+    assert (
+        client.post("/api/admin/programs", headers=admin, json=payload).status_code
+        == 422
     )
 
 

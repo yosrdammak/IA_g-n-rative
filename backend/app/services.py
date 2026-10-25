@@ -49,6 +49,104 @@ def rank_programs(programs, text):
     return sorted(ranked, key=lambda item: (-len(item[1]), item[0].id))
 
 
+# Sections du baccalauréat tunisien.
+BAC_SECTIONS = {
+    "mathematiques": "Mathématiques",
+    "sciences_experimentales": "Sciences expérimentales",
+    "sciences_techniques": "Sciences techniques",
+    "informatique": "Sciences de l’informatique",
+    "economie_gestion": "Économie et gestion",
+    "lettres": "Lettres",
+    "sport": "Sport",
+}
+SUBJECTS = {
+    "mathematiques": "Mathématiques",
+    "physique": "Sciences physiques",
+    "svt": "Sciences de la vie et de la terre",
+    "informatique": "Informatique",
+    "technique": "Technologie",
+    "economie": "Économie",
+    "gestion": "Gestion",
+    "francais": "Français",
+    "anglais": "Anglais",
+    "arabe": "Arabe",
+    "philosophie": "Philosophie",
+    "histoire_geographie": "Histoire-géographie",
+}
+STRONG_GRADE = 14
+WEAK_GRADE = 10
+# Score /100 : centres d’intérêt 40, notes dans les matières clés 40, moyenne du bac 20.
+INTEREST_WEIGHT, SUBJECT_WEIGHT, AVERAGE_WEIGHT = 40, 40, 20
+
+
+def compatibility(program, profile):
+    """Explainable program/profile match: eligibility + weighted score."""
+    hits = sorted(
+        keywords((profile.interests or "") + " " + (profile.goals or ""))
+        & keywords(
+            " ".join(
+                (
+                    program.name,
+                    program.category,
+                    program.description or "",
+                    program.outcomes or "",
+                )
+            )
+        )
+    )
+    reasons = []
+    sections = program.accepted_bac_sections or []
+    if profile.bac_section and sections and profile.bac_section not in sections:
+        reasons.append(
+            f"Section {BAC_SECTIONS.get(profile.bac_section, profile.bac_section)} "
+            "non listée parmi les sections acceptées"
+        )
+    if (
+        program.min_average is not None
+        and profile.bac_average is not None
+        and profile.bac_average < program.min_average
+    ):
+        reasons.append(
+            f"Moyenne {profile.bac_average:g}/20 inférieure au seuil indicatif "
+            f"{program.min_average:g}/20"
+        )
+    grades = profile.subject_grades or {}
+    rated = {s: grades[s] for s in (program.key_subjects or []) if s in grades}
+    strengths = sorted(
+        (s for s, g in rated.items() if g >= STRONG_GRADE), key=lambda s: -rated[s]
+    )
+    weaknesses = sorted(s for s, g in rated.items() if g < WEAK_GRADE)
+    breakdown = {
+        "interests": round(INTEREST_WEIGHT * min(len(hits), 3) / 3),
+        "subjects": (
+            round(SUBJECT_WEIGHT * sum(rated.values()) / len(rated) / 20)
+            if rated
+            else 0
+        ),
+        "average": (
+            round(AVERAGE_WEIGHT * profile.bac_average / 20)
+            if profile.bac_average is not None
+            else 0
+        ),
+    }
+    return {
+        "eligible": not reasons,
+        "ineligibility_reasons": reasons,
+        "score": sum(breakdown.values()),
+        "breakdown": breakdown,
+        "matching_keywords": hits,
+        "strengths": [SUBJECTS[s] for s in strengths],
+        "weaknesses": [SUBJECTS[s] for s in weaknesses],
+    }
+
+
+def rank_by_compatibility(programs, profile):
+    results = [(program, compatibility(program, profile)) for program in programs]
+    return sorted(
+        results, key=lambda item: (not item[1]["eligible"], -item[1]["score"], item[0].id)
+    )
+
+
 def catalogue_reply(message, programs, profile):
     low = normalize(message)
     if any(w in low for w in ("inscri", "candidat", "n9ayed", "na9yed")):

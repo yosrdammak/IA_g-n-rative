@@ -21,6 +21,7 @@ export const api = {
 
   recommendations: () => request('/api/recommendations'),
   profile: () => request('/api/profile'),
+  profileOptions: () => request('/api/profile/options'),
   updateProfile: (data) => request('/api/profile', { method: 'PUT', body: JSON.stringify(data) }),
   applications: () => request('/api/applications'),
   apply: (program_id, phone) => request('/api/applications', { method: 'POST', body: JSON.stringify({ program_id, phone, consent: true }) }),

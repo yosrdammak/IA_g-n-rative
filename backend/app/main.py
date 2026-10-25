@@ -11,9 +11,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from .config import CORS_ORIGINS
 from .seed import seed_demo
-from .services import rank_programs, chat_reply
+from .services import (
+    chat_reply,
+    rank_by_compatibility,
+    BAC_SECTIONS,
+    SUBJECTS,
+)
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Annotated, Literal, Optional
 from .database import get_db, SessionLocal
 from .models import (
     User,
@@ -76,11 +81,20 @@ class Login(InputModel):
     model_config = ConfigDict(str_strip_whitespace=False, extra="forbid")
 
 
+BacSection = Literal[tuple(BAC_SECTIONS)]
+Subject = Literal[tuple(SUBJECTS)]
+Grade = Annotated[float, Field(ge=0, le=20)]
+
+
 class ProfileIn(InputModel):
     academic_level: str = Field(default="", max_length=120)
     interests: str = Field(default="", max_length=500)
     goals: str = Field(default="", max_length=500)
     preferred_language: str = "fr"
+    bac_section: Optional[BacSection] = None
+    bac_year: Optional[int] = Field(default=None, ge=1980)
+    bac_average: Optional[Grade] = None
+    subject_grades: dict[Subject, Grade] = Field(default_factory=dict)
 
 
 class ChatIn(InputModel):
@@ -106,8 +120,20 @@ def user_out(u):
     return {"id": u.id, "email": u.email, "full_name": u.full_name, "role": u.role}
 
 
+PROFILE_FIELDS = (
+    "academic_level",
+    "interests",
+    "goals",
+    "preferred_language",
+    "bac_section",
+    "bac_year",
+    "bac_average",
+    "subject_grades",
+)
+
+
 def program_out(x):
-    return {
+    data = {
         k: getattr(x, k)
         for k in (
             "id",
@@ -118,8 +144,12 @@ def program_out(x):
             "prerequisites",
             "outcomes",
             "published",
+            "min_average",
         )
     }
+    data["accepted_bac_sections"] = x.accepted_bac_sections or []
+    data["key_subjects"] = x.key_subjects or []
+    return data
 
 
 def application_out(a):
@@ -220,11 +250,16 @@ def programs(db: Session = Depends(get_db)):
 @app.get("/api/profile")
 def get_profile(u: User = Depends(current_user), db: Session = Depends(get_db)):
     p = ensure_profile(db, u)
+    data = {k: getattr(p, k) for k in PROFILE_FIELDS}
+    data["subject_grades"] = p.subject_grades or {}
+    return data
+
+
+@app.get("/api/profile/options")
+def profile_options():
     return {
-        "academic_level": p.academic_level,
-        "interests": p.interests,
-        "goals": p.goals,
-        "preferred_language": p.preferred_language,
+        "bac_sections": [{"value": k, "label": v} for k, v in BAC_SECTIONS.items()],
+        "subjects": [{"value": k, "label": v} for k, v in SUBJECTS.items()],
     }
 
 
@@ -235,7 +270,13 @@ def update_profile(
     p = ensure_profile(db, u)
     if v.preferred_language not in ("fr", "tn", "arabizi"):
         raise HTTPException(422, "Langue non prise en charge")
-    for field, value in v.model_dump().items():
+    if v.bac_year is not None and v.bac_year > datetime.now(timezone.utc).year + 1:
+        raise HTTPException(422, "Année du bac invalide")
+    data = v.model_dump()
+    if data["bac_average"] is not None:
+        data["bac_average"] = round(data["bac_average"], 2)
+    data["subject_grades"] = {k: round(g, 2) for k, g in v.subject_grades.items()}
+    for field, value in data.items():
         setattr(p, field, value)
     db.commit()
     return {"message": "Profil mis à jour"}
@@ -244,17 +285,30 @@ def update_profile(
 @app.get("/api/recommendations")
 def recommendations(u: User = Depends(current_user), db: Session = Depends(get_db)):
     p = ensure_profile(db, u)
-    ranked = rank_programs(
-        db.query(Program).filter_by(published=True).all(), p.interests + " " + p.goals
+    ranked = rank_by_compatibility(
+        db.query(Program).filter_by(published=True).all(), p
     )
-    data = [
-        {"program": program_out(pr), "matching_keywords": hits, "score": len(hits)}
-        for pr, hits in ranked[:3]
+    missing = [
+        label
+        for label, value in (
+            ("section du bac", p.bac_section),
+            ("moyenne du bac", p.bac_average),
+            ("notes par matière", p.subject_grades),
+        )
+        if not value
     ]
     return {
-        "method": "keywords",
-        "disclaimer": "Correspondances par mots-clés, sans validation des prérequis ni décision officielle.",
-        "recommendations": data,
+        "method": "compatibility",
+        "disclaimer": "Compatibilité indicative (intérêts, section, moyenne et notes). Les seuils sont indicatifs ; seule l’administration décide de l’admission.",
+        "missing_profile_fields": missing,
+        "recommendations": [
+            {"program": program_out(pr), **c} for pr, c in ranked if c["eligible"]
+        ][:3],
+        "excluded": [
+            {"program": program_out(pr), "reasons": c["ineligibility_reasons"]}
+            for pr, c in ranked
+            if not c["eligible"]
+        ],
     }
 
 
@@ -460,6 +514,9 @@ class ProgramIn(InputModel):
     prerequisites: str = Field(default="", max_length=10000)
     outcomes: str = Field(default="", max_length=10000)
     published: bool = False
+    accepted_bac_sections: list[BacSection] = Field(default_factory=list)
+    min_average: Optional[Grade] = None
+    key_subjects: list[Subject] = Field(default_factory=list)
 
 
 def can_manage_program(u, institution):

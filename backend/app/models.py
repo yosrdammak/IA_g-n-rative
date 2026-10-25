@@ -5,6 +5,7 @@ from sqlalchemy import (
     String,
     Text,
     Boolean,
+    Float,
     DateTime,
     ForeignKey,
     JSON,
@@ -37,6 +38,10 @@ class Program(Base):
     prerequisites = Column(Text, default="")
     outcomes = Column(Text, default="")
     published = Column(Boolean, default=False)
+    # Selection criteria (empty/None = no constraint), see services.compatibility.
+    accepted_bac_sections = Column(JSON, default=list)
+    min_average = Column(Float, nullable=True)
+    key_subjects = Column(JSON, default=list)
 
 
 class Profile(Base):
@@ -47,6 +52,11 @@ class Profile(Base):
     interests = Column(Text, default="")
     goals = Column(Text, default="")
     preferred_language = Column(String(30), default="fr")
+    bac_section = Column(String(40), nullable=True)
+    bac_year = Column(Integer, nullable=True)
+    bac_average = Column(Float, nullable=True)
+    # {"mathematiques": 15.5, ...} — keys from services.SUBJECTS, grades out of 20.
+    subject_grades = Column(JSON, default=dict)
 
 
 class Conversation(Base):
