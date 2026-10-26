@@ -42,6 +42,11 @@ class Program(Base):
     accepted_bac_sections = Column(JSON, default=list)
     min_average = Column(Float, nullable=True)
     key_subjects = Column(JSON, default=list)
+    # Constraints & characteristics (US-2.4)
+    annual_tuition = Column(Float, nullable=True)  # Frais de scolarité annuels (DT)
+    duration_years = Column(Integer, nullable=True)  # Durée d'études (années)
+    city = Column(String(80), default="Sfax")  # Ville / campus
+    learning_style = Column(String(40), default="mixte")  # "pratique", "theorique", "mixte"
 
 
 class Profile(Base):
@@ -57,6 +62,12 @@ class Profile(Base):
     bac_average = Column(Float, nullable=True)
     # {"mathematiques": 15.5, ...} — keys from services.SUBJECTS, grades out of 20.
     subject_grades = Column(JSON, default=dict)
+    # Constraints & candidate preferences
+    max_budget = Column(Float, nullable=True)  # Budget annuel maximum (DT)
+    study_duration = Column(Integer, nullable=True)  # Durée d'études souhaitée (années)
+    city = Column(String(80), nullable=True)  # Campus / Ville de prédilection
+    learning_style = Column(String(40), nullable=True)  # "pratique", "theorique", "mixte"
+    optional_subject_name = Column(String(80), nullable=True)  # Nom de la langue / matière optionnelle
 
 
 class Conversation(Base):

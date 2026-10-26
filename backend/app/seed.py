@@ -20,6 +20,10 @@ DEMO_PROGRAMS = [
         ],
         min_average=12,
         key_subjects=["mathematiques", "informatique", "physique"],
+        annual_tuition=6200.0,
+        duration_years=5,
+        city="Campus El Ons",
+        learning_style="pratique",
     ),
     dict(
         name="[Démo] Cycle préparatoire scientifique",
@@ -36,6 +40,10 @@ DEMO_PROGRAMS = [
         ],
         min_average=12,
         key_subjects=["mathematiques", "physique"],
+        annual_tuition=5000.0,
+        duration_years=2,
+        city="Campus Mharza",
+        learning_style="theorique",
     ),
     dict(
         name="[Démo] Licence en management",
@@ -47,6 +55,10 @@ DEMO_PROGRAMS = [
         accepted_bac_sections=[],
         min_average=10,
         key_subjects=["gestion", "economie", "francais", "anglais"],
+        annual_tuition=4200.0,
+        duration_years=3,
+        city="Campus El Ons",
+        learning_style="pratique",
     ),
     dict(
         name="[Démo] Finance et analyse de données",
@@ -63,6 +75,10 @@ DEMO_PROGRAMS = [
         ],
         min_average=11,
         key_subjects=["mathematiques", "economie", "gestion"],
+        annual_tuition=4800.0,
+        duration_years=3,
+        city="Campus Mharza",
+        learning_style="mixte",
     ),
 ]
 
@@ -76,10 +92,19 @@ def seed_demo(db):
         )
         if not program:
             db.add(Program(**data, published=True))
-        elif program.accepted_bac_sections is None and program.key_subjects is None:
-            # Demo programs created before selection criteria existed.
-            for field in ("accepted_bac_sections", "min_average", "key_subjects"):
-                setattr(program, field, data[field])
+        else:
+            # Populate any missing selection or constraints fields
+            for field in (
+                "accepted_bac_sections",
+                "min_average",
+                "key_subjects",
+                "annual_tuition",
+                "duration_years",
+                "city",
+                "learning_style",
+            ):
+                if getattr(program, field, None) is None and field in data:
+                    setattr(program, field, data[field])
     password = os.getenv("DEMO_PASSWORD", "DemoCampus2026!")
     for email, name, role in [
         ("candidat@demo.tn", "Candidat Démo", "candidate"),

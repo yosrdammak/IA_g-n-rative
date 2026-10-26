@@ -16,6 +16,7 @@ from .services import (
     rank_by_compatibility,
     BAC_SECTIONS,
     SUBJECTS,
+    SECTION_SUBJECTS,
 )
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Annotated, Literal, Optional
@@ -86,15 +87,45 @@ Subject = Literal[tuple(SUBJECTS)]
 Grade = Annotated[float, Field(ge=0, le=20)]
 
 
+LEARNING_STYLES = {
+    "pratique": "Plutôt pratique (projets, stages, technologie appliquée)",
+    "theorique": "Plutôt théorique (fondamentaux, sciences, recherche)",
+    "mixte": "Équilibré (théorie et pratique)",
+}
+CAMPUSES = [
+    {"value": "Campus El Ons", "label": "Campus El Ons (IIT)"},
+    {"value": "Campus Mharza", "label": "Campus Mharza (IIT)"},
+    {"value": "Campus El OnsISB", "label": "Campus El Ons (ISB)"},
+]
+CITIES = ["Campus El Ons", "Campus Mharza", "Campus El OnsISB", "Sfax", "Tunis"]
+POPULAR_INTERESTS = [
+    {"id": "ai_data", "label": "Intelligence Artificielle & Data", "icon": "🤖"},
+    {"id": "software_web", "label": "Génie Logiciel & Web", "icon": "💻"},
+    {"id": "cybersecurity", "label": "Cybersécurité & Réseaux", "icon": "🔒"},
+    {"id": "cloud_devops", "label": "Cloud & DevOps", "icon": "☁️"},
+    {"id": "embedded_iot", "label": "Systèmes Embarqués & IoT", "icon": "⚙️"},
+    {"id": "management", "label": "Management & Entrepreneuriat", "icon": "📈"},
+    {"id": "finance", "label": "Finance & Banque", "icon": "📊"},
+    {"id": "marketing", "label": "Marketing Digital & Business", "icon": "🎯"},
+    {"id": "math_physics", "label": "Mathématiques & Sciences", "icon": "📐"},
+    {"id": "commerce", "label": "Commerce International", "icon": "🌐"},
+]
+
+
 class ProfileIn(InputModel):
     academic_level: str = Field(default="", max_length=120)
-    interests: str = Field(default="", max_length=500)
-    goals: str = Field(default="", max_length=500)
+    interests: str = Field(default="", max_length=1000)
+    goals: str = Field(default="", max_length=1000)
     preferred_language: str = "fr"
     bac_section: Optional[BacSection] = None
     bac_year: Optional[int] = Field(default=None, ge=1980)
     bac_average: Optional[Grade] = None
     subject_grades: dict[Subject, Grade] = Field(default_factory=dict)
+    max_budget: Optional[float] = Field(default=None, ge=0)
+    study_duration: Optional[int] = Field(default=None, ge=1, le=10)
+    city: Optional[str] = Field(default=None, max_length=80)
+    learning_style: Optional[str] = Field(default=None, max_length=40)
+    optional_subject_name: Optional[str] = Field(default=None, max_length=80)
 
 
 class ChatIn(InputModel):
@@ -129,6 +160,11 @@ PROFILE_FIELDS = (
     "bac_year",
     "bac_average",
     "subject_grades",
+    "max_budget",
+    "study_duration",
+    "city",
+    "learning_style",
+    "optional_subject_name",
 )
 
 
@@ -145,6 +181,10 @@ def program_out(x):
             "outcomes",
             "published",
             "min_average",
+            "annual_tuition",
+            "duration_years",
+            "city",
+            "learning_style",
         )
     }
     data["accepted_bac_sections"] = x.accepted_bac_sections or []
@@ -260,6 +300,11 @@ def profile_options():
     return {
         "bac_sections": [{"value": k, "label": v} for k, v in BAC_SECTIONS.items()],
         "subjects": [{"value": k, "label": v} for k, v in SUBJECTS.items()],
+        "section_subjects": SECTION_SUBJECTS,
+        "learning_styles": [{"value": k, "label": v} for k, v in LEARNING_STYLES.items()],
+        "campuses": CAMPUSES,
+        "cities": CITIES,
+        "popular_interests": POPULAR_INTERESTS,
     }
 
 
@@ -268,7 +313,7 @@ def update_profile(
     v: ProfileIn, u: User = Depends(current_user), db: Session = Depends(get_db)
 ):
     p = ensure_profile(db, u)
-    if v.preferred_language not in ("fr", "tn", "arabizi"):
+    if v.preferred_language not in ("fr", "en"):
         raise HTTPException(422, "Langue non prise en charge")
     if v.bac_year is not None and v.bac_year > datetime.now(timezone.utc).year + 1:
         raise HTTPException(422, "Année du bac invalide")
@@ -517,6 +562,10 @@ class ProgramIn(InputModel):
     accepted_bac_sections: list[BacSection] = Field(default_factory=list)
     min_average: Optional[Grade] = None
     key_subjects: list[Subject] = Field(default_factory=list)
+    annual_tuition: Optional[float] = Field(default=None, ge=0)
+    duration_years: Optional[int] = Field(default=None, ge=1, le=10)
+    city: Optional[str] = Field(default="Sfax", max_length=80)
+    learning_style: Optional[str] = Field(default="mixte", max_length=40)
 
 
 def can_manage_program(u, institution):

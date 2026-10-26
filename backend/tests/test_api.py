@@ -142,6 +142,11 @@ def test_profile_recommendations_and_invalid_language(client, candidate):
         "bac_year": None,
         "bac_average": None,
         "subject_grades": {},
+        "max_budget": None,
+        "study_duration": None,
+        "city": None,
+        "learning_style": None,
+        "optional_subject_name": None,
     }
     ranked = client.get("/api/recommendations", headers=candidate).json()[
         "recommendations"
@@ -549,3 +554,61 @@ def test_cors_frontend(client):
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+
+
+def test_us23_clickable_interests_and_assistant_goals(client, candidate):
+    # Verify profile options returns popular interests for clickable cards
+    opts = client.get("/api/profile/options").json()
+    assert "popular_interests" in opts
+    assert len(opts["popular_interests"]) >= 5
+    assert any("Intelligence Artificielle" in item["label"] for item in opts["popular_interests"])
+
+    # Update candidate profile with specific goals and interests
+    payload = {
+        "academic_level": "Bac",
+        "interests": "Intelligence Artificielle & Data, Génie Logiciel",
+        "goals": "Devenir ingénieur en intelligence artificielle",
+        "preferred_language": "fr",
+    }
+    res = client.put("/api/profile", headers=candidate, json=payload)
+    assert res.status_code == 200
+
+    # Test that assistant exploits the goals when asked for orientation
+    chat_res = client.post(
+        "/api/chat",
+        headers=candidate,
+        json={"message": "Quelle formation me correspond selon mon objectif ?"},
+    ).json()
+    assert "Devenir ingénieur en intelligence artificielle" in chat_res["reply"]
+    assert "[Démo] Génie logiciel et IA" in chat_res["reply"]
+
+
+def test_us24_constraints_filtering_and_weighting(client, candidate):
+    # Candidate with budget constraint: 4500 DT max (should exclude Génie Logiciel 6200 DT and Prépa 5000 DT)
+    payload = {
+        "interests": "informatique management finance",
+        "goals": "Études courtes ou abordables",
+        "max_budget": 4500,
+        "study_duration": 3,
+        "city": "Campus El Ons",
+        "learning_style": "pratique",
+    }
+    res = client.put("/api/profile", headers=candidate, json=payload)
+    assert res.status_code == 200
+
+    rec = client.get("/api/recommendations", headers=candidate).json()
+    recs = rec["recommendations"]
+    excluded = rec["excluded"]
+
+    # Génie logiciel (6200 DT) and Prépa (5000 DT) must be excluded due to budget
+    excluded_names = {e["program"]["name"]: e["reasons"] for e in excluded}
+    assert "[Démo] Génie logiciel et IA" in excluded_names
+    assert any("budget" in r.lower() or "frais" in r.lower() for r in excluded_names["[Démo] Génie logiciel et IA"])
+
+    # Available recommendations should only include programs <= 4500 DT (e.g. Licence en management: 4200 DT)
+    assert all(r["program"]["annual_tuition"] <= 4500 for r in recs)
+
+    # Check that score breakdown includes constraints points
+    assert any(r["breakdown"]["constraints"] > 0 for r in recs)
+    top = recs[0]
+    assert any("Budget respecté" in s or "Approche pratique alignée" in s for s in top["strengths"])
