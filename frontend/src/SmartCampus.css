@@ -116,6 +116,16 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
   transition: background .2s ease, color .2s ease, border-color .2s ease, transform .2s ease;
 }
 
+.profile-completion-badge {
+  margin-left: auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--primary);
+  font: 700 9px 'DM Mono', monospace;
+  line-height: 1;
+}
+
 .sidebar nav button:hover {
   transform: translateX(2px);
   background: var(--primary-soft);
@@ -356,6 +366,10 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
   .sidebar nav button {
     justify-content: center;
     padding-inline: 8px;
+  }
+
+  .profile-completion-badge {
+    display: none;
   }
 }
 
@@ -1294,12 +1308,15 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
 
 /* Profil académique (bac, notes) et compatibilité */
 .profile-section{margin-top:30px;padding-top:26px;border-top:1px solid var(--line)}.profile-section .eyebrow{margin-bottom:8px}.profile-hint{margin:0 0 18px;color:var(--muted);font-size:12px;line-height:1.6}.profile-grid.three{grid-template-columns:repeat(3,1fr)}
+.profile-completion{margin:0 0 30px;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--soft);scroll-margin-top:24px}.profile-completion-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.profile-completion-head h3{margin:0;font-size:17px}.profile-completion-head strong{color:var(--purple);font-size:28px;line-height:1}.completion-track{height:8px;margin:17px 0 16px;border-radius:8px;background:var(--surface);overflow:hidden}.completion-track span{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--purple),#a17be9);transition:width .25s ease}.completion-missing p{margin:0 0 8px;color:var(--muted);font-size:11px}.completion-missing ul{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0;padding:0;list-style:none}.completion-missing a{color:var(--purple);font-size:11px;font-weight:800;text-decoration:none}.completion-missing a:hover{text-decoration:underline}.completion-success{margin:0;color:var(--green);font-size:11px;font-weight:700}
 .grades-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}.grades-grid input{padding:11px 14px}
 .score-breakdown{display:grid;gap:9px;margin:-8px 0 20px}.score-breakdown span{display:flex;justify-content:space-between;color:var(--muted);font-size:10px;margin-bottom:4px}.score-breakdown b{color:var(--ink)}.score-breakdown i{display:block;height:5px;border-radius:5px;background:var(--soft);overflow:hidden}.score-breakdown em{display:block;height:100%;border-radius:5px;background:var(--purple)}
 .keywords .weak{color:var(--orange)}
 .profile-missing{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px;padding:14px 18px;border:1px dashed var(--purple);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px}
+.ranking-changed{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:22px;padding:14px 18px;border:1px solid var(--purple);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px}.ranking-changed strong{color:var(--purple)}.ranking-changed span{color:var(--muted)}
 .excluded-list{margin-top:24px;padding:24px;border-radius:12px;background:var(--surface)}.excluded-list>div{display:grid;gap:4px;padding:12px 0;border-top:1px solid var(--line);font-size:12px}.excluded-list span{color:var(--orange)}
 @media (max-width:760px){.profile-grid.three{grid-template-columns:1fr}}
+@media (max-width:600px){.profile-completion-head strong{font-size:24px}.completion-missing ul{display:grid;gap:7px}}
 
 /* Profil : Cartes d'intérêt, Objectifs & Contraintes */
 .section-head-with-badge {
@@ -1509,3 +1526,336 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
   }
 }
 
+/* Shared type scale: keep hierarchy and controls consistent across every view. */
+:root {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --text-xs: .6875rem;
+  --text-sm: .8125rem;
+  --text-md: .9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  font-family: var(--font-sans);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.brand { font-size: var(--text-md); letter-spacing: -.025em; }
+.eyebrow,
+.side-label,
+.path-number,
+.method-grid span,
+.institution span,
+.badge-pill,
+.badge-ai { font-family: var(--font-mono); }
+.eyebrow { font-size: var(--text-xs); letter-spacing: .12em; }
+.button { min-height: 40px; padding: 10px 18px; font-size: var(--text-sm); line-height: 1.2; }
+.button.large { min-height: 46px; padding: 13px 22px; }
+.text-button { font-size: var(--text-sm); }
+
+.app-header { min-height: 88px; height: auto; padding-block: 20px; }
+.content { line-height: 1.5; }
+.page-intro { margin-bottom: 28px; }
+.page-intro h2,
+.dashboard-intro h2 { font-size: clamp(1.75rem, 3vw, 2.5rem); line-height: 1.15; letter-spacing: -.04em; }
+.page-intro p:not(.eyebrow),
+.panel p,
+.profile-form p,
+.application-form p { font-size: var(--text-sm); line-height: 1.6; }
+.panel-heading,
+.section-title h3 { font-size: var(--text-lg); line-height: 1.25; }
+.profile-form label,
+.application-form label,
+.form-inner label { font-size: var(--text-xs); line-height: 1.3; }
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.application-form input,
+.application-form select,
+.chat-input input { min-height: 42px; padding: 10px 12px; font-size: var(--text-sm); }
+.sidebar nav button { min-height: 40px; padding: 10px 12px; font-size: var(--text-sm); }
+.support strong { font-size: var(--text-xs); }
+.support small,
+.profile-trigger small { font-size: var(--text-xs); }
+
+.welcome h2 { font-size: clamp(1.35rem, 2.3vw, 1.8rem); line-height: 1.2; }
+.quick-card strong { font-size: var(--text-lg); line-height: 1.25; }
+.quick-card p,
+.next-panel p:not(.eyebrow),
+.quote-card p { font-size: var(--text-sm); line-height: 1.55; }
+.next-panel h3 { font-size: var(--text-lg); }
+.assistant-page-title h1,
+.chat-head h2 { font-size: var(--text-xl); line-height: 1.25; }
+.chat-title > div > p:last-child,
+.assistant-page-title p { font-size: var(--text-sm); }
+.message p { font-size: var(--text-sm); line-height: 1.6; }
+.recommendation h3,
+.application-aside h3 { font-size: var(--text-lg); line-height: 1.3; }
+.recommendation p,
+.application-aside p { font-size: var(--text-sm); line-height: 1.6; }
+
+@media (max-width: 760px) {
+  .content { padding-block: 24px; }
+  .app-header { min-height: 72px; padding-block: 16px; }
+  .page-intro { margin-bottom: 22px; }
+  .page-intro h2,
+  .dashboard-intro h2 { font-size: 1.75rem; }
+  .hero-copy h1 { font-size: clamp(2.5rem, 11vw, 4rem); letter-spacing: -.08em; }
+  .method h2,
+  .institutions h2 { font-size: 2rem; }
+}
+
+/* Readable body scale for the product UI. */
+:root {
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.625rem;
+  --text-2xl: 2.125rem;
+}
+
+body { font-size: 16px; }
+.eyebrow { font-size: var(--text-xs); }
+.public-header nav a,
+.sidebar nav button,
+.text-button,
+.button { font-size: var(--text-sm); }
+.side-label { font-size: var(--text-xs); }
+.hero-text,
+.hero-copy .hero-text,
+.method-grid p,
+.institution p,
+.muted,
+.form-inner label,
+.application-form label,
+.profile-form label,
+.page-intro p:not(.eyebrow),
+.panel p,
+.profile-form p,
+.application-form p,
+.recommendation p,
+.application-aside p { font-size: var(--text-sm); }
+.trust-row,
+.metrics span,
+.metrics p,
+footer,
+footer > div span { font-size: var(--text-xs); }
+.support strong,
+.support small,
+.profile-trigger small,
+.chat-title > div > p:last-child,
+.assistant-page-title p { font-size: var(--text-xs); }
+.quick-card p,
+.next-panel p:not(.eyebrow),
+.quote-card p,
+.message p { font-size: var(--text-sm); }
+.form-inner input,
+.application-form input,
+.application-form select,
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.chat-input input { font-size: var(--text-md); }
+.profile-heading p { font-size: var(--text-sm); }
+.admin-kpi-card span,
+.admin-kpi-card small,
+.status-badge { font-size: var(--text-xs); }
+
+/* Keep the candidate navigation visible while the workspace scrolls. */
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell > .sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 20;
+  width: 268px;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.app-shell > .workspace {
+  width: calc(100% - 268px);
+  min-height: 100vh;
+  margin-left: 268px;
+}
+
+@media (max-width: 760px) {
+  .app-shell > .sidebar { display: none; }
+  .app-shell > .workspace {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* Final typography hierarchy: readable text with restrained emphasis. */
+body {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+strong,
+b {
+  font-weight: 700;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--foreground);
+}
+
+h1,
+h2 {
+  letter-spacing: -.035em;
+}
+
+p {
+  font-weight: 400;
+}
+
+.hero-copy h1,
+.auth-quote h1 {
+  font-size: clamp(2.75rem, 5.4vw, 4.75rem);
+  line-height: 1.08;
+  letter-spacing: -.055em;
+}
+
+.method h2,
+.institutions h2 {
+  font-size: clamp(2rem, 3.5vw, 2.75rem);
+  line-height: 1.15;
+}
+
+.page-intro h2,
+.dashboard-intro h2 {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  line-height: 1.15;
+}
+
+.page-intro > p:not(.eyebrow),
+.profile-hint,
+.hero-text,
+.method-grid p,
+.institution p,
+.recommendation p,
+.application-aside p,
+.quick-card p,
+.quote-card p,
+.next-panel p:not(.eyebrow),
+.muted {
+  color: var(--muted-fg);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+
+.section-title h3,
+.panel-heading h3,
+.profile-heading h3,
+.section-head-with-badge h3,
+.recommendation h3,
+.program-card h3,
+.institution h3,
+.next-panel h3 {
+  font-size: var(--text-lg);
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.profile-form label,
+.application-form label,
+.form-inner label,
+.interest-label,
+.field-hint {
+  font-weight: 600;
+}
+
+.profile-form label,
+.application-form label,
+.form-inner label {
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+
+.field-hint,
+.interest-badge,
+.optional-subject-header small {
+  color: var(--muted-fg);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.eyebrow,
+.side-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .1em;
+}
+
+.feature-pill,
+.badge-pill,
+.badge-ai,
+.status-badge,
+.tag,
+.profile-completion-badge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.metrics strong,
+.progress-panel .panel-heading > strong,
+.admin-kpi-card strong,
+.profile-completion-head > strong {
+  font-weight: 700;
+}
+
+.button,
+.text-button,
+.sidebar nav button,
+.public-header nav a {
+  font-weight: 600;
+}
+
+.text-button,
+.public-header nav a,
+.sidebar nav button {
+  line-height: 1.35;
+}
+
+.message p,
+.chat-input input,
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.application-form input,
+.application-form select {
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.quote-card p,
+.goal-text {
+  font-style: normal;
+}
+
+@media (max-width: 760px) {
+  .hero-copy h1,
+  .auth-quote h1 {
+    font-size: clamp(2.4rem, 10vw, 3.75rem);
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, clearSession, saveSession, storedUser } from './api'
 import EmptyState from './components/shared/EmptyState'
 import './SmartCampus.css'
@@ -6,6 +6,17 @@ import './components/components.css'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const nav = [{ id: 'dashboard', label: 'Vue d’ensemble', icon: 'home' }, { id: 'profile', label: 'Mon profil', icon: 'profile' }, { id: 'programs', label: 'Programmes', icon: 'grid' }, { id: 'orientation', label: 'Mon orientation', icon: 'spark' }, { id: 'application', label: 'Ma candidature', icon: 'check' }, { id: 'assistant', label: 'Assistant IA', icon: 'chat' }]
+const PROFILE_COMPLETION_FIELDS = ['academic_level', 'interests', 'goals', 'bac_section', 'bac_year', 'bac_average', 'subject_grades', 'criteria']
+function profileCompletion(profile) {
+  const criteriaComplete = profile?.max_budget && profile?.study_duration && profile?.city && profile?.learning_style
+  const isComplete = key => key === 'criteria'
+    ? Boolean(criteriaComplete)
+    : key === 'subject_grades'
+      ? Object.keys(profile?.subject_grades || {}).length > 0
+      : Boolean(String(profile?.[key] ?? '').trim())
+  const completed = PROFILE_COMPLETION_FIELDS.filter(isComplete).length
+  return Math.round((completed / PROFILE_COMPLETION_FIELDS.length) * 100)
+}
 function Brand() { return <div className="brand"><img src="/smartCampus logo.png" alt="SmartCampus AI" /><span>smart<span>campus</span><small>AI</small></span></div> }
 function Icon({ name, size = 19 }) { const paths = { home: <path d="m3 9 6-5 6 5v6H4V9m3 6v-4h4v4" />, grid: <><rect x="3" y="3" width="5" height="5" rx="1" /><rect x="10" y="3" width="5" height="5" rx="1" /><rect x="3" y="10" width="5" height="5" rx="1" /><rect x="10" y="10" width="5" height="5" rx="1" /></>, spark: <path d="m9 2 1.2 4.8L15 8l-4.8 1.2L9 14l-1.2-4.8L3 8l4.8-1.2L9 2Z" />, check: <path d="m3 9 4 4 7-8" />, chat: <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h7A2.5 2.5 0 0 1 15 4.5v4a2.5 2.5 0 0 1-2.5 2.5H8l-4 3v-3.5A2.5 2.5 0 0 1 3 9V4.5Z" />, profile: <><circle cx="9" cy="6" r="2.5" /><path d="M4 15a5 5 0 0 1 10 0" /></>, bell: <path d="M4 11h10l-1.2-1.7V6a3.8 3.8 0 0 0-7.6 0v3.3L4 11Zm4.2 2a1.1 1.1 0 0 0 1.6 0" />, sun: <><circle cx="9" cy="9" r="3" /><path d="M9 1v2m0 12v2M1 9h2m12 0h2M3.3 3.3l1.4 1.4m8.6 8.6 1.4 1.4m0-11.4-1.4 1.4M4.7 13.3l-1.4 1.4" /></>, moon: <path d="M14.5 11.8A6 6 0 0 1 6.2 3.5 6.5 6.5 0 1 0 14.5 11.8Z" /> }; return <svg className="ui-icon" width={size} height={size} viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg> }
 function Theme({ theme, onClick }) { return <button className="icon-button" onClick={onClick} aria-label="Changer de thème"><Icon name={theme === 'light' ? 'moon' : 'sun'} /></button> }
@@ -23,7 +34,68 @@ export default function SmartCampus() {
 }
 function Landing({ theme, toggle, auth }) { const steps = ['Conversation', 'Orientation', 'Préinscription', 'QCM & rendez-vous']; return <main className="landing"><header className="public-header"><Brand /><nav><a href="#programmes">Programmes</a><a href="#methode">Notre méthode</a><Theme theme={theme} onClick={toggle} /><button className="button ghost" onClick={() => auth('login')}>Se connecter</button><button className="button primary" onClick={() => auth('signup')}>Commencer</button></nav></header><section className="hero-section"><div className="hero-copy"><p className="eyebrow">ORIENTATION UNIVERSITAIRE · IIT × ISB</p><h1>Le bon parcours commence par <em>une bonne question.</em></h1><p className="hero-text">SmartCampus vous aide à comprendre vos options, clarifier votre projet et avancer vers l'admission avec des informations fiables.</p><div className="hero-actions"><button className="button primary large" onClick={() => auth('signup')}>Démarrer mon orientation ↗</button><button className="text-button" onClick={() => auth('login')}>J'ai déjà un compte →</button></div><div className="trust-row"><span>✓ Données protégées</span><span>✓ Accompagnement humain</span><span>✓ Sources officielles</span></div></div><div className="hero-visual"><img className="hero-photo" src="/iit3.jpg" alt="Campus de l'Institut International de Technologie" /><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="signal-card"><span className="signal-dot" /> VOTRE PROJET, EN CLAIR</div><div className="path-card"><span className="path-number">01</span><strong>Explorer</strong><span>Comprendre les parcours</span></div><div className="path-card second"><span className="path-number">02</span><strong>Choisir</strong><span>Une recommandation argumentée</span></div><div className="hero-core">SC<span>AI</span></div></div></section><section className="metrics"><div><strong>5</strong><span>étapes guidées</span></div><div><strong>2</strong><span>établissements</span></div><div><strong>100%</strong><span>votre décision</span></div><p>Un espace pensé pour<br /><b>votre prochaine étape.</b></p></section><section id="methode" className="method"><div><p className="eyebrow">UNE MÉTHODE SIMPLE</p><h2>Du premier doute<br />au projet qui avance.</h2></div><div className="method-grid">{steps.map((step, i) => <article key={step}><span>0{i + 1}</span><h3>{step}</h3><p>{['Posez vos questions en français, tunisien ou Arabizi.', 'Comparez des parcours selon votre profil.', 'Constituez votre dossier étape par étape.', 'Préparez la suite avec les équipes IIT et ISB.'][i]}</p></article>)}</div></section><section id="programmes" className="institutions"><div><p className="eyebrow">DES PARCOURS CONCRETS</p><h2>IIT ou ISB.<br /><em>Votre futur, votre choix.</em></h2></div><div className="institution-cards"><div className="institution"><img src="/iit.png" alt="Logo IIT" /><h3>Institut International de Technologie</h3><p>Préparatoire, Licence et Ingénierie pour construire une expertise solide.</p><a href="#top">Découvrir →</a></div><div className="institution isb"><img src="/instutue.jfif" alt="Campus ISB" /><h3>International School of Business</h3><p>Management, Finance et Marketing pour donner de l'impact à vos idées.</p><a href="#top">Découvrir →</a></div></div></section><footer><Brand /><div><strong>SmartCampus AI</strong><span>IIT · ISB · Sfax, Tunisie</span><span>© 2026 · Orientation et admission universitaire</span></div></footer></main> }
 function Auth({ mode, switchMode, success, back }) { const signup = mode === 'signup'; const [form, setForm] = useState({ email: signup ? '' : 'candidat@demo.tn', password: '', full_name: '' }); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); async function submit(event) { event.preventDefault(); setLoading(true); setError(''); try { success(signup ? await api.register(form) : await api.login(form.email, form.password)) } catch (err) { setError(err.message) } finally { setLoading(false) } } return <main className="auth-page"><div className="auth-aside"><img className="auth-image" src="/jj.jpg" alt="Étudiante dans un espace universitaire" /><div className="auth-overlay" /><div className="auth-aside-content"><button className="back-link" onClick={back}>← Retour à l'accueil</button><Brand /><div className="auth-quote"><p className="eyebrow">VOTRE PROJET MÉRITE DE LA CLARTÉ</p><h1>Chaque parcours<br /><em>commence ici.</em></h1><p>Un espace unique pour explorer, comprendre et choisir avec confiance.</p></div></div></div><div className="auth-form"><div className="form-inner"><div className="mobile-brand"><Brand /></div><p className="eyebrow">{signup ? 'CRÉER MON ESPACE' : 'BON RETOUR'}</p><h2>{signup ? 'Commencez votre parcours.' : 'Ravi de vous revoir.'}</h2><p className="muted">{signup ? 'Quelques informations pour personnaliser votre orientation.' : 'Connectez-vous pour retrouver votre projet.'}</p><form onSubmit={submit}>{signup && <label>Nom complet<input required value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Yasmine Ben Ali" /></label>}<label>Adresse email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="vous@exemple.tn" /></label><label>Mot de passe<input required minLength="8" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="8 caractères minimum" /></label>{error && <div className="form-error">{error}</div>}<button className="button primary wide" disabled={loading}>{loading ? 'Connexion en cours…' : signup ? 'Créer mon espace →' : 'Se connecter →'}</button></form><div className="demo-box"><strong>Compte de démonstration</strong><span>{signup ? 'Ou utilisez une adresse email libre pour créer un compte.' : 'candidat@demo.tn · DemoCampus2026! (si démo activée)'}</span></div><p className="switch-auth">{signup ? 'Vous avez déjà un compte ?' : 'Pas encore de compte ?'} <button onClick={() => switchMode(signup ? 'login' : 'signup')}>{signup ? 'Se connecter' : 'Créer un compte'}</button></p></div></div></main> }
-function Candidate({ user, view, setView, theme, toggle, logout }) { const [data, setData] = useState({ programs: [], applications: [], recommendations: null }); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); useEffect(() => { Promise.all([api.programs(), api.applications(), api.recommendations()]).then(([programs, applications, recommendations]) => { setData({ programs, applications, recommendations }); setLoadError('') }).catch(err => setLoadError(err.message)).finally(() => setLoading(false)) }, [view]); return <div className={`app-shell ${view === 'dashboard' ? 'dashboard-shell' : ''}`}><aside className="sidebar"><Brand /><div className="side-label">ESPACE CANDIDAT</div><nav>{nav.map(item => <button className={view === item.id ? 'active' : ''} key={item.id} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}</nav><div className="sidebar-bottom"><div className="support"><span>?</span><div><strong>Besoin d'aide ?</strong><small>Parler à un conseiller</small></div></div><button className="logout" onClick={logout}>↪ Déconnexion</button></div></aside><main className="workspace"><header className={`app-header ${view === 'dashboard' ? 'dashboard-header' : ''}`}><div className="mobile-brand"><Brand /></div><div className={view === 'assistant' ? 'assistant-page-title' : ''}>{view === 'assistant' ? <><span className="header-assistant-orb">✦</span><div><h1>Assistant IA</h1><p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p></div></> : <><p className="date-label">VENDREDI 16 OCTOBRE 2026</p><h1>{nav.find(item => item.id === view)?.label || 'Mon profil'}</h1></>}</div><div className="header-actions"><Theme theme={theme} onClick={toggle} /><button className="notification" aria-label="Notifications"><Icon name="bell" /><i /></button><button className="profile-trigger" onClick={() => setView('profile')}><span className="avatar">{user.full_name?.slice(0, 1).toUpperCase() || 'C'}</span><span><strong>{user.full_name?.split(' ')[0] || 'Candidat'}</strong><small>Candidat</small></span></button></div></header><div className="content">{loading ? <div className="loading"><span />Chargement de votre espace…</div> : loadError ? <div className="form-error">{loadError}</div> : view === 'dashboard' ? <Dashboard user={user} data={data} setView={setView} /> : view === 'programs' ? <Programs programs={data.programs} /> : view === 'orientation' ? <Orientation data={data} setView={setView} /> : view === 'application' ? <Application data={data} setData={setData} /> : view === 'profile' ? <Profile user={user} /> : <Assistant />}</div></main></div> }
+function recommendationSignature(result) {
+  return (result?.recommendations || [])
+    .map(item => `${item.program.id}:${item.score}`)
+    .join('|')
+}
+
+function Candidate({ user, view, setView, theme, toggle, logout }) {
+  const [data, setData] = useState({ programs: [], applications: [], recommendations: null })
+  const [completion, setCompletion] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [rankingChanged, setRankingChanged] = useState(false)
+  const rankingStorageKey = `smartcampus_last_seen_ranking_${user.id}`
+
+  useEffect(() => {
+    Promise.all([api.programs(), api.applications(), api.recommendations(), api.profile()])
+      .then(([programs, applications, recommendations, profile]) => {
+        setData({ programs, applications, recommendations })
+        setCompletion(profileCompletion(profile))
+        setLoadError('')
+      })
+      .catch(err => setLoadError(err.message))
+      .finally(() => setLoading(false))
+  }, [view])
+
+  const handleProfileSaved = useCallback(recommendations => {
+    const lastSeen = localStorage.getItem(rankingStorageKey)
+    if (lastSeen && lastSeen !== recommendationSignature(recommendations)) {
+      setRankingChanged(true)
+    }
+    setData(current => ({ ...current, recommendations }))
+  }, [rankingStorageKey])
+
+  const handleProfileChange = useCallback(profile => {
+    setCompletion(profileCompletion(profile))
+  }, [])
+
+  const handleConsultation = useCallback(() => {
+    localStorage.setItem(rankingStorageKey, recommendationSignature(data.recommendations))
+  }, [data.recommendations, rankingStorageKey])
+
+  return (
+    <div className={`app-shell ${view === 'dashboard' ? 'dashboard-shell' : ''}`}>
+      <aside className="sidebar">
+        <Brand />
+        <div className="side-label">ESPACE CANDIDAT</div>
+        <nav>{nav.map(item => <button className={view === item.id ? 'active' : ''} key={item.id} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}{item.id === 'profile' && <small className="profile-completion-badge">{completion === null ? '—' : `${completion}%`}</small>}</button>)}</nav>
+        <div className="sidebar-bottom"><div className="support"><span>?</span><div><strong>Besoin d'aide ?</strong><small>Parler à un conseiller</small></div></div><button className="logout" onClick={logout}>↪ Déconnexion</button></div>
+      </aside>
+      <main className="workspace">
+        <header className={`app-header ${view === 'dashboard' ? 'dashboard-header' : ''}`}>
+          <div className="mobile-brand"><Brand /></div>
+          <div className={view === 'assistant' ? 'assistant-page-title' : ''}>{view === 'assistant' ? <><span className="header-assistant-orb">✦</span><div><h1>Assistant IA</h1><p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p></div></> : <><p className="date-label"></p><h1>{nav.find(item => item.id === view)?.label || 'Mon profil'}</h1></>}</div>
+          <div className="header-actions"><Theme theme={theme} onClick={toggle} /><button className="notification" aria-label="Notifications"><Icon name="bell" /><i /></button><button className="profile-trigger" onClick={() => setView('profile')}><span className="avatar">{user.full_name?.slice(0, 1).toUpperCase() || 'C'}</span><span><strong>{user.full_name?.split(' ')[0] || 'Candidat'}</strong><small>Candidat</small></span></button></div>
+        </header>
+        <div className="content">
+          {loading ? <div className="loading"><span />Chargement de votre espace…</div> : loadError ? <div className="form-error">{loadError}</div> : view === 'dashboard' ? <Dashboard user={user} data={data} setView={setView} /> : view === 'programs' ? <Programs programs={data.programs} /> : view === 'orientation' ? <Orientation data={data} setView={setView} rankingChanged={rankingChanged} onConsultation={handleConsultation} /> : view === 'application' ? <Application data={data} setData={setData} /> : view === 'profile' ? <Profile user={user} onProfileChange={handleProfileChange} onProfileSaved={(recommendations, profile) => { setCompletion(profileCompletion(profile)); handleProfileSaved(recommendations) }} /> : <Assistant />}
+        </div>
+      </main>
+    </div>
+  )
+}
 
 const DEFAULT_INTERESTS = [
   { id: 'ai_data', label: 'Intelligence Artificielle & Data', icon: '🤖' },
@@ -101,7 +173,7 @@ const DEFAULT_SECTION_SUBJECTS = {
   ],
 }
 
-function Profile({ user }) {
+function Profile({ user, onProfileChange, onProfileSaved }) {
   const [form, setForm] = useState({
     academic_level: '',
     interests: '',
@@ -152,6 +224,10 @@ function Profile({ user }) {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!loading) onProfileChange(form)
+  }, [form, loading, onProfileChange])
+
   const setGrade = (subject, value) =>
     setForm({ ...form, subject_grades: { ...form.subject_grades, [subject]: value } })
 
@@ -192,7 +268,9 @@ function Profile({ user }) {
         learning_style: form.learning_style || null,
         optional_subject_name: form.optional_subject_name?.trim() || null,
       })
-      setStatus('Profil mis à jour avec succès.')
+      const recommendations = await api.recommendations()
+      onProfileSaved(recommendations, form)
+      setStatus('Profil mis à jour avec succès. Vos recommandations ont été recalculées.')
     } catch (err) {
       setStatus(err.message)
     }
@@ -205,6 +283,24 @@ function Profile({ user }) {
   const currentSectionSubjects = form.bac_section
     ? (options.section_subjects?.[form.bac_section] || DEFAULT_SECTION_SUBJECTS[form.bac_section] || [])
     : []
+  const completionFields = [
+    { key: 'academic_level', label: 'Niveau d’études actuel', anchor: 'profile-academic' },
+    { key: 'interests', label: 'Centres d’intérêt', anchor: 'profile-interests' },
+    { key: 'goals', label: 'Objectif professionnel', anchor: 'profile-goals' },
+    { key: 'bac_section', label: 'Section du bac', anchor: 'profile-bac' },
+    { key: 'bac_year', label: 'Année d’obtention du bac', anchor: 'profile-bac' },
+    { key: 'bac_average', label: 'Moyenne du bac', anchor: 'profile-bac' },
+    { key: 'subject_grades', label: 'Notes par matière', anchor: 'profile-grades' },
+    { key: 'criteria', label: 'Critères de choix', anchor: 'profile-criteria' },
+  ]
+  const criteriaComplete = form.max_budget && form.study_duration && form.city && form.learning_style
+  const isComplete = key => key === 'criteria'
+    ? Boolean(criteriaComplete)
+    : key === 'subject_grades'
+      ? Object.keys(form.subject_grades || {}).length > 0
+      : Boolean(String(form[key] ?? '').trim())
+  const missingFields = completionFields.filter(field => !isComplete(field.key))
+  const completion = profileCompletion(form)
 
   return (
     <section className="profile-page">
@@ -223,8 +319,35 @@ function Profile({ user }) {
           </div>
         </div>
 
+        <section className="profile-completion" aria-labelledby="profile-completion-title">
+          <div className="profile-completion-head">
+            <div>
+              <p className="eyebrow">VOTRE PROGRESSION</p>
+              <h3 id="profile-completion-title">Complétion du profil</h3>
+            </div>
+            <strong>{completion}%</strong>
+          </div>
+          <div className="completion-track" aria-label={`${completion}% du profil complété`}>
+            <span style={{ width: `${completion}%` }} />
+          </div>
+          {missingFields.length > 0 ? (
+            <div className="completion-missing">
+              <p>Il vous reste {missingFields.length} élément{missingFields.length > 1 ? 's' : ''} à renseigner :</p>
+              <ul>
+                {missingFields.map(field => (
+                  <li key={field.key}>
+                    <a href={`#${field.anchor}`}> {field.label} <span aria-hidden="true">→</span></a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="completion-success">Votre profil est complet. Vous pouvez maintenant affiner vos recommandations.</p>
+          )}
+        </section>
+
         {/* Informations générales */}
-        <div className="profile-grid">
+        <div className="profile-grid" id="profile-academic">
           <label>
             Niveau d’études actuel
             <input
@@ -246,7 +369,7 @@ function Profile({ user }) {
         </div>
 
         {/* Centres d'intérêt sous forme de cartes cliquables */}
-        <div className="profile-section">
+        <div className="profile-section" id="profile-interests">
           <div className="section-head-with-badge">
             <div>
               <p className="eyebrow">CENTRES D’INTÉRÊT</p>
@@ -283,7 +406,7 @@ function Profile({ user }) {
         </div>
 
         {/* Champ libre pour l'objectif professionnel, exploité par l'assistant */}
-        <div className="profile-section">
+        <div className="profile-section" id="profile-goals">
           <div className="section-head-with-badge">
             <div>
               <p className="eyebrow">OBJECTIF PROFESSIONNEL</p>
@@ -306,7 +429,7 @@ function Profile({ user }) {
         </div>
 
         {/* Contraintes de budget, durée, lieu et pédagogie */}
-        <div className="profile-section">
+        <div className="profile-section" id="profile-criteria">
           <div className="section-head-with-badge">
             <div>
               <p className="eyebrow">CONTRAINTES & PRÉFÉRENCES</p>
@@ -373,7 +496,7 @@ function Profile({ user }) {
         </div>
 
         {/* Baccalauréat */}
-        <div className="profile-section">
+        <div className="profile-section" id="profile-bac">
           <p className="eyebrow">BACCALAURÉAT</p>
           <p className="profile-hint">Votre section et votre moyenne permettent de ne proposer que des parcours accessibles avec votre niveau réel.</p>
           <div className="profile-grid three">
@@ -416,7 +539,7 @@ function Profile({ user }) {
         </div>
 
         {/* Notes par matière */}
-        <div className="profile-section">
+        <div className="profile-section" id="profile-grades">
           <p className="eyebrow">NOTES PAR MATIÈRE</p>
           <p className="profile-hint">
             Renseignez les matières de votre section du baccalauréat (sur 20). Les notes ≥ 14 sont considérées comme des points forts.
@@ -530,11 +653,14 @@ function Programs({ programs }) {
   )
 }
 
-function Orientation({ data, setView }) {
+function Orientation({ data, setView, rankingChanged, onConsultation }) {
   const result = data.recommendations || {}
   const recommendations = result.recommendations || []
   const excluded = result.excluded || []
   const missing = result.missing_profile_fields || []
+  useEffect(() => {
+    onConsultation()
+  }, [onConsultation, data.recommendations])
   const hasConstraintsScore = recommendations.some(r => r.breakdown?.constraints > 0)
   const parts = [
     ['interests', 'Intérêts & projet', 40],
@@ -545,6 +671,12 @@ function Orientation({ data, setView }) {
 
   return (
     <>
+      {rankingChanged && (
+        <div className="ranking-changed" role="status">
+          <strong>Votre classement a changé.</strong>
+          <span>Vos recommandations ont été recalculées depuis votre dernière consultation.</span>
+        </div>
+      )}
       <div className="page-intro split">
         <div>
           <p className="eyebrow">ORIENTATION PERSONNALISÉE</p>

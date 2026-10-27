@@ -1,4 +1,0 @@
-# Compatibility entry point; the canonical stack is defined at the project root.
-# Requires Docker Compose v2.24+.
-include:
-  - ../docker-compose.yml
