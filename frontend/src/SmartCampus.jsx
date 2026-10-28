@@ -607,8 +607,9 @@ function Profile({ user, onProfileChange, onProfileSaved }) {
         </div>
 
         {status && (
-          <div className={status.includes('succès') ? 'success-box' : 'form-error'}>
-            {status}
+          <div className={status.includes('succès') ? 'success-box profile-save-status' : 'form-error'} role="status">
+            {status.includes('succès') && <span className="status-icon" aria-hidden="true">✓</span>}
+            <span>{status}</span>
           </div>
         )}
 
@@ -673,8 +674,11 @@ function Orientation({ data, setView, rankingChanged, onConsultation }) {
     <>
       {rankingChanged && (
         <div className="ranking-changed" role="status">
-          <strong>Votre classement a changé.</strong>
-          <span>Vos recommandations ont été recalculées depuis votre dernière consultation.</span>
+          <span className="status-icon" aria-hidden="true">↻</span>
+          <div>
+            <strong>Votre classement a changé</strong>
+            <span>Vos recommandations ont été recalculées depuis votre dernière consultation.</span>
+          </div>
         </div>
       )}
       <div className="page-intro split">
