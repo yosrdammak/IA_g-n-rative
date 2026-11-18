@@ -1,6 +1,7 @@
 import os
 import re
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -611,3 +612,149 @@ def update_program(
         setattr(program, field, value)
     db.commit()
     return program_out(program)
+
+
+# ---------------------------------------------------------------------------
+# SA-25 / SA-26 / SA-29 — Sessions visiteurs sans compte
+# ---------------------------------------------------------------------------
+
+GUEST_SESSION_TTL_HOURS = 24  # Durée de vie d'une session anonyme (SA-26)
+
+
+class GuestChatIn(InputModel):
+    message: str = Field(min_length=1, max_length=3000)
+    # Le frontend génère un token UUID et le conserve en localStorage
+    session_token: str = Field(min_length=8, max_length=64)
+    conversation_id: Optional[int] = None
+
+
+class ClaimIn(InputModel):
+    """SA-29 : rattacher une conversation invitée à un compte authentifié."""
+    session_token: str = Field(min_length=8, max_length=64)
+
+
+def _get_or_create_guest_conversation(db: Session, session_token: str, conversation_id: Optional[int]):
+    """Retourne la conversation existante du visiteur, ou en crée une nouvelle."""
+    now_utc = datetime.now(timezone.utc)
+
+    if conversation_id:
+        c = db.get(Conversation, conversation_id)
+        if not c or c.session_token != session_token:
+            raise HTTPException(404, "Conversation introuvable ou session invalide")
+        if c.expires_at and c.expires_at < now_utc:
+            raise HTTPException(410, "Session expirée. Démarrez une nouvelle conversation.")
+        return c
+
+    # Cherche une conversation active pour ce token
+    c = (
+        db.query(Conversation)
+        .filter(
+            Conversation.session_token == session_token,
+            Conversation.user_id.is_(None),
+        )
+        .order_by(Conversation.id.desc())
+        .first()
+    )
+    if c:
+        if c.expires_at and c.expires_at < now_utc:
+            raise HTTPException(410, "Session expirée. Démarrez une nouvelle conversation.")
+        return c
+
+    # Nouvelle conversation anonyme
+    expires = now_utc + timedelta(hours=GUEST_SESSION_TTL_HOURS)
+    c = Conversation(session_token=session_token, user_id=None, expires_at=expires)
+    db.add(c)
+    db.flush()
+    return c
+
+
+@app.post("/api/chat/guest")
+def guest_chat(v: GuestChatIn, db: Session = Depends(get_db)):
+    """SA-25 / SA-26 — Chat sans authentification, mémoire temporaire par session_token."""
+    c = _get_or_create_guest_conversation(db, v.session_token, v.conversation_id)
+
+    history = (
+        db.query(Message)
+        .filter_by(conversation_id=c.id)
+        .order_by(Message.id.desc())
+        .limit(10)
+        .all()[::-1]
+    )
+    programs = db.query(Program).filter_by(published=True).order_by(Program.id).all()
+    reply, mode = chat_reply(v.message, history, programs, None)
+
+    db.add(Message(conversation_id=c.id, sender="user", text=v.message))
+    db.add(Message(conversation_id=c.id, sender="assistant", text=reply))
+    db.commit()
+    return {
+        "conversation_id": c.id,
+        "reply": reply,
+        "mode": mode,
+        "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+    }
+
+
+@app.get("/api/chat/guest/{session_token}")
+def guest_history(session_token: str, db: Session = Depends(get_db)):
+    """SA-26 — Récupère l'historique de la session visiteur (mémoire temporaire)."""
+    now_utc = datetime.now(timezone.utc)
+    convs = (
+        db.query(Conversation)
+        .filter(
+            Conversation.session_token == session_token,
+            Conversation.user_id.is_(None),
+        )
+        .order_by(Conversation.id.desc())
+        .all()
+    )
+    result = []
+    for c in convs:
+        if c.expires_at and c.expires_at < now_utc:
+            continue
+        msgs = (
+            db.query(Message)
+            .filter_by(conversation_id=c.id)
+            .order_by(Message.id)
+            .all()
+        )
+        result.append({
+            "id": c.id,
+            "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+            "messages": [{"sender": m.sender, "text": m.text} for m in msgs],
+        })
+    return result
+
+
+@app.post("/api/chat/guest/claim")
+def claim_guest_conversation(
+    v: ClaimIn,
+    u: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """SA-29 — Associe toutes les conversations anonymes d'un session_token au compte connecté."""
+    now_utc = datetime.now(timezone.utc)
+    convs = (
+        db.query(Conversation)
+        .filter(
+            Conversation.session_token == v.session_token,
+            Conversation.user_id.is_(None),
+        )
+        .all()
+    )
+    if not convs:
+        raise HTTPException(404, "Aucune session invitée trouvée pour ce token")
+
+    claimed = []
+    for c in convs:
+        if c.expires_at and c.expires_at < now_utc:
+            continue
+        c.user_id = u.id
+        c.session_token = None   # Le token est consommé
+        c.expires_at = None      # Plus d'expiration : la conv appartient au compte
+        claimed.append(c.id)
+
+    db.commit()
+    return {
+        "claimed_conversation_ids": claimed,
+        "message": f"{len(claimed)} conversation(s) rattachée(s) à votre compte.",
+    }

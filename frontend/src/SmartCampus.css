@@ -1509,3 +1509,117 @@ input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus
   }
 }
 
+
+/* ── SA-25/26 : Chat visiteur (landing) ── */
+.guest-chat-section {
+  max-width: 860px;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
+.guest-chat-intro {
+  margin-bottom: 1.5rem;
+}
+.guest-chat-panel {
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+}
+.guest-chat-panel .messages {
+  flex: 1;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.guest-badge {
+  font-size: 0.7rem;
+  background: var(--accent, #6c47ff);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+/* ── SA-29 : Bannière de rattachement ── */
+.claim-banner {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--surface, #fff);
+  border: 1.5px solid var(--accent, #6c47ff);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  max-width: 480px;
+  width: calc(100% - 2rem);
+  text-align: center;
+}
+.claim-banner p {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+.claim-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.claim-success {
+  border-color: #22c55e;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.claim-error {
+  color: var(--error, #dc2626);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Espace visiteur (GuestShell) ── */
+.guest-nav-locked {
+  opacity: 0.45;
+  cursor: pointer;
+  position: relative;
+}
+.guest-nav-locked:hover {
+  opacity: 0.7;
+}
+.lock-badge {
+  font-size: 0.7rem;
+  margin-left: auto;
+}
+.guest-cta-side {
+  padding: 1rem;
+  background: var(--surface-raised, rgba(108,71,255,0.07));
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.guest-cta-side p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 0.25rem;
+}
+.guest-aside-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.guest-aside-cta h3 {
+  margin: 0.25rem 0;
+}
+.guest-features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.guest-features-list li {
+  color: var(--text-secondary);
+}

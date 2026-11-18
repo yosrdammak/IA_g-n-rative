@@ -73,7 +73,12 @@ class Profile(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # nullable=True : les visiteurs sans compte peuvent avoir une conversation (SA-25)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Jeton UUID identifiant la session anonyme du visiteur (SA-25)
+    session_token = Column(String(64), nullable=True, index=True)
+    # Expiration automatique des sessions visiteurs après 24 h (SA-26)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=now)
 
 

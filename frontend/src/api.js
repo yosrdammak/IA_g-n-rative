@@ -28,6 +28,16 @@ export const api = {
   conversations: () => request('/api/conversations'),
   chat: (message, conversation_id) => request('/api/chat', { method: 'POST', body: JSON.stringify({ message, conversation_id }) }),
   dashboard: () => request('/api/dashboard'),
+
+  // SA-25 / SA-26 — Chat visiteur sans compte
+  guestChat: (message, session_token, conversation_id) =>
+    request('/api/chat/guest', { method: 'POST', body: JSON.stringify({ message, session_token, ...(conversation_id ? { conversation_id } : {}) }) }),
+  guestHistory: (session_token) =>
+    request(`/api/chat/guest/${encodeURIComponent(session_token)}`),
+
+  // SA-29 — Rattacher la session invitée au compte après connexion
+  claimGuestSession: (session_token) =>
+    request('/api/chat/guest/claim', { method: 'POST', body: JSON.stringify({ session_token }) }),
 }
 
 export function saveSession(session) {
@@ -36,3 +46,22 @@ export function saveSession(session) {
 }
 export function clearSession() { localStorage.removeItem('smartcampus_token'); localStorage.removeItem('smartcampus_user') }
 export function storedUser() { try { return JSON.parse(localStorage.getItem('smartcampus_user')) } catch { return null } }
+
+// SA-25 — Génère ou récupère le session token du visiteur (stocké en localStorage)
+export function getGuestToken() {
+  let token = localStorage.getItem('smartcampus_guest_token')
+  if (!token) {
+    // Génère un UUID v4 simple
+    token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+    })
+    localStorage.setItem('smartcampus_guest_token', token)
+  }
+  return token
+}
+
+export function clearGuestToken() {
+  localStorage.removeItem('smartcampus_guest_token')
+  localStorage.removeItem('smartcampus_guest_conversation_id')
+}

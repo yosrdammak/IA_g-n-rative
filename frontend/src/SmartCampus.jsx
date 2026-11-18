@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { api, clearSession, saveSession, storedUser } from './api'
+import { useEffect, useRef, useState } from 'react'
+import { api, clearSession, saveSession, storedUser, getGuestToken, clearGuestToken } from './api'
 import EmptyState from './components/shared/EmptyState'
 import './SmartCampus.css'
 import './components/components.css'
@@ -10,18 +10,48 @@ function Brand() { return <div className="brand"><img src="/smartCampus logo.png
 function Icon({ name, size = 19 }) { const paths = { home: <path d="m3 9 6-5 6 5v6H4V9m3 6v-4h4v4" />, grid: <><rect x="3" y="3" width="5" height="5" rx="1" /><rect x="10" y="3" width="5" height="5" rx="1" /><rect x="3" y="10" width="5" height="5" rx="1" /><rect x="10" y="10" width="5" height="5" rx="1" /></>, spark: <path d="m9 2 1.2 4.8L15 8l-4.8 1.2L9 14l-1.2-4.8L3 8l4.8-1.2L9 2Z" />, check: <path d="m3 9 4 4 7-8" />, chat: <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h7A2.5 2.5 0 0 1 15 4.5v4a2.5 2.5 0 0 1-2.5 2.5H8l-4 3v-3.5A2.5 2.5 0 0 1 3 9V4.5Z" />, profile: <><circle cx="9" cy="6" r="2.5" /><path d="M4 15a5 5 0 0 1 10 0" /></>, bell: <path d="M4 11h10l-1.2-1.7V6a3.8 3.8 0 0 0-7.6 0v3.3L4 11Zm4.2 2a1.1 1.1 0 0 0 1.6 0" />, sun: <><circle cx="9" cy="9" r="3" /><path d="M9 1v2m0 12v2M1 9h2m12 0h2M3.3 3.3l1.4 1.4m8.6 8.6 1.4 1.4m0-11.4-1.4 1.4M4.7 13.3l-1.4 1.4" /></>, moon: <path d="M14.5 11.8A6 6 0 0 1 6.2 3.5 6.5 6.5 0 1 0 14.5 11.8Z" /> }; return <svg className="ui-icon" width={size} height={size} viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg> }
 function Theme({ theme, onClick }) { return <button className="icon-button" onClick={onClick} aria-label="Changer de thème"><Icon name={theme === 'light' ? 'moon' : 'sun'} /></button> }
 export default function SmartCampus() {
-  const route = window.location.pathname
+  const [path, setPath] = useState(window.location.pathname)
+  const route = path
+
+  // Écouter les navigations history (pushState déclenche popstate via dispatchEvent)
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  const navigate = (url) => { window.history.pushState({}, '', url); setPath(url) }
+
   const initialView = route.includes('/assistant') ? 'assistant' : route.includes('/orientation') ? 'orientation' : route.includes('/dossier') ? 'application' : route.includes('/programmes') ? 'programs' : route.includes('/profil') ? 'profile' : 'dashboard'
   const [user, setUser] = useState(storedUser()); const [view, setViewState] = useState(initialView); const [theme, setTheme] = useState(() => localStorage.getItem('smartcampus_theme') || 'light'); const [auth, setAuth] = useState(route === '/auth/signup' ? 'signup' : route === '/auth' ? 'login' : null)
-  const setView = nextView => { const paths = { dashboard: '/candidat', programs: '/candidat/programmes', orientation: '/candidat/orientation', application: '/candidat/dossier', assistant: '/candidat/assistant', profile: '/candidat/profil' }; window.history.pushState({}, '', paths[nextView] || '/candidat'); setViewState(nextView) }
-  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('smartcampus_theme', theme); if (window.location.pathname === '/') window.history.replaceState({}, '', '/interface') }, [theme])
-  const toggle = () => setTheme(theme === 'light' ? 'dark' : 'light'); const login = session => { saveSession(session); setUser(session.user); setAuth(null) }; const logout = () => { clearSession(); setUser(null) }
+  const setView = nextView => { const paths = { dashboard: '/candidat', programs: '/candidat/programmes', orientation: '/candidat/orientation', application: '/candidat/dossier', assistant: '/candidat/assistant', profile: '/candidat/profil' }; navigate(paths[nextView] || '/candidat'); setViewState(nextView) }
+  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('smartcampus_theme', theme) }, [theme])
+  const [showClaim, setShowClaim] = useState(false)
+  const toggle = () => setTheme(theme === 'light' ? 'dark' : 'light')
+  const login = session => {
+    saveSession(session)
+    setUser(session.user)
+    setAuth(null)
+    if (localStorage.getItem('smartcampus_guest_token')) setShowClaim(true)
+  }
+  const logout = () => { clearSession(); setUser(null); navigate('/') }
+  const tryGuest = () => navigate('/candidat/assistant')
   if (auth) return <Auth mode={auth} switchMode={setAuth} success={login} back={() => setAuth(null)} />
-  if (!user) return <Landing theme={theme} toggle={toggle} auth={setAuth} />
+  // Visiteur : si la route est /candidat/*, afficher l'espace visiteur directement
+  const isGuestRoute = path.includes('/candidat') || path.includes('/assistant')
+  if (!user && isGuestRoute) return <GuestShell theme={theme} toggle={toggle} auth={setAuth} onBack={() => navigate('/')} />
+  if (!user) return <Landing theme={theme} toggle={toggle} auth={setAuth} tryGuest={tryGuest} />
   if (user.role !== 'candidate') return <Admin user={user} theme={theme} toggle={toggle} logout={logout} />
-  return <Candidate user={user} view={view} setView={setView} theme={theme} toggle={toggle} logout={logout} />
+  return (
+    <>
+      {showClaim && (
+        <ClaimBanner onDismiss={() => setShowClaim(false)} />
+      )}
+      <Candidate user={user} view={view} setView={setView} theme={theme} toggle={toggle} logout={logout} />
+    </>
+  )
 }
-function Landing({ theme, toggle, auth }) { const steps = ['Conversation', 'Orientation', 'Préinscription', 'QCM & rendez-vous']; return <main className="landing"><header className="public-header"><Brand /><nav><a href="#programmes">Programmes</a><a href="#methode">Notre méthode</a><Theme theme={theme} onClick={toggle} /><button className="button ghost" onClick={() => auth('login')}>Se connecter</button><button className="button primary" onClick={() => auth('signup')}>Commencer</button></nav></header><section className="hero-section"><div className="hero-copy"><p className="eyebrow">ORIENTATION UNIVERSITAIRE · IIT × ISB</p><h1>Le bon parcours commence par <em>une bonne question.</em></h1><p className="hero-text">SmartCampus vous aide à comprendre vos options, clarifier votre projet et avancer vers l'admission avec des informations fiables.</p><div className="hero-actions"><button className="button primary large" onClick={() => auth('signup')}>Démarrer mon orientation ↗</button><button className="text-button" onClick={() => auth('login')}>J'ai déjà un compte →</button></div><div className="trust-row"><span>✓ Données protégées</span><span>✓ Accompagnement humain</span><span>✓ Sources officielles</span></div></div><div className="hero-visual"><img className="hero-photo" src="/iit3.jpg" alt="Campus de l'Institut International de Technologie" /><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="signal-card"><span className="signal-dot" /> VOTRE PROJET, EN CLAIR</div><div className="path-card"><span className="path-number">01</span><strong>Explorer</strong><span>Comprendre les parcours</span></div><div className="path-card second"><span className="path-number">02</span><strong>Choisir</strong><span>Une recommandation argumentée</span></div><div className="hero-core">SC<span>AI</span></div></div></section><section className="metrics"><div><strong>5</strong><span>étapes guidées</span></div><div><strong>2</strong><span>établissements</span></div><div><strong>100%</strong><span>votre décision</span></div><p>Un espace pensé pour<br /><b>votre prochaine étape.</b></p></section><section id="methode" className="method"><div><p className="eyebrow">UNE MÉTHODE SIMPLE</p><h2>Du premier doute<br />au projet qui avance.</h2></div><div className="method-grid">{steps.map((step, i) => <article key={step}><span>0{i + 1}</span><h3>{step}</h3><p>{['Posez vos questions en français, tunisien ou Arabizi.', 'Comparez des parcours selon votre profil.', 'Constituez votre dossier étape par étape.', 'Préparez la suite avec les équipes IIT et ISB.'][i]}</p></article>)}</div></section><section id="programmes" className="institutions"><div><p className="eyebrow">DES PARCOURS CONCRETS</p><h2>IIT ou ISB.<br /><em>Votre futur, votre choix.</em></h2></div><div className="institution-cards"><div className="institution"><img src="/iit.png" alt="Logo IIT" /><h3>Institut International de Technologie</h3><p>Préparatoire, Licence et Ingénierie pour construire une expertise solide.</p><a href="#top">Découvrir →</a></div><div className="institution isb"><img src="/instutue.jfif" alt="Campus ISB" /><h3>International School of Business</h3><p>Management, Finance et Marketing pour donner de l'impact à vos idées.</p><a href="#top">Découvrir →</a></div></div></section><footer><Brand /><div><strong>SmartCampus AI</strong><span>IIT · ISB · Sfax, Tunisie</span><span>© 2026 · Orientation et admission universitaire</span></div></footer></main> }
+function Landing({ theme, toggle, auth, tryGuest }) { const steps = ['Conversation', 'Orientation', 'Préinscription', 'QCM & rendez-vous']; return <main className="landing"><header className="public-header"><Brand /><nav><a href="#programmes">Programmes</a><a href="#methode">Notre méthode</a><button className="text-button" onClick={tryGuest}>Essayer</button><Theme theme={theme} onClick={toggle} /><button className="button ghost" onClick={() => auth('login')}>Se connecter</button><button className="button primary" onClick={() => auth('signup')}>Commencer</button></nav></header><section className="hero-section"><div className="hero-copy"><p className="eyebrow">ORIENTATION UNIVERSITAIRE · IIT × ISB</p><h1>Le bon parcours commence par <em>une bonne question.</em></h1><p className="hero-text">SmartCampus vous aide à comprendre vos options, clarifier votre projet et avancer vers l'admission avec des informations fiables.</p><div className="hero-actions"><button className="button primary large" onClick={() => auth('signup')}>Démarrer mon orientation ↗</button><button className="text-button" onClick={tryGuest}>Essayer sans compte →</button></div><div className="trust-row"><span>✓ Données protégées</span><span>✓ Accompagnement humain</span><span>✓ Sources officielles</span></div></div><div className="hero-visual"><img className="hero-photo" src="/iit3.jpg" alt="Campus de l'Institut International de Technologie" /><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="signal-card"><span className="signal-dot" /> VOTRE PROJET, EN CLAIR</div><div className="path-card"><span className="path-number">01</span><strong>Explorer</strong><span>Comprendre les parcours</span></div><div className="path-card second"><span className="path-number">02</span><strong>Choisir</strong><span>Une recommandation argumentée</span></div><div className="hero-core">SC<span>AI</span></div></div></section><section className="metrics"><div><strong>5</strong><span>étapes guidées</span></div><div><strong>2</strong><span>établissements</span></div><div><strong>100%</strong><span>votre décision</span></div><p>Un espace pensé pour<br /><b>votre prochaine étape.</b></p></section><section id="methode" className="method"><div><p className="eyebrow">UNE MÉTHODE SIMPLE</p><h2>Du premier doute<br />au projet qui avance.</h2></div><div className="method-grid">{steps.map((step, i) => <article key={step}><span>0{i + 1}</span><h3>{step}</h3><p>{['Posez vos questions en français, tunisien ou Arabizi.', 'Comparez des parcours selon votre profil.', 'Constituez votre dossier étape par étape.', 'Préparez la suite avec les équipes IIT et ISB.'][i]}</p></article>)}</div></section><section id="programmes" className="institutions"><div><p className="eyebrow">DES PARCOURS CONCRETS</p><h2>IIT ou ISB.<br /><em>Votre futur, votre choix.</em></h2></div><div className="institution-cards"><div className="institution"><img src="/iit.png" alt="Logo IIT" /><h3>Institut International de Technologie</h3><p>Préparatoire, Licence et Ingénierie pour construire une expertise solide.</p><a href="#top">Découvrir →</a></div><div className="institution isb"><img src="/instutue.jfif" alt="Campus ISB" /><h3>International School of Business</h3><p>Management, Finance et Marketing pour donner de l'impact à vos idées.</p><a href="#top">Découvrir →</a></div></div></section><footer><Brand /><div><strong>SmartCampus AI</strong><span>IIT · ISB · Sfax, Tunisie</span><span>© 2026 · Orientation et admission universitaire</span></div></footer></main> }
 function Auth({ mode, switchMode, success, back }) { const signup = mode === 'signup'; const [form, setForm] = useState({ email: signup ? '' : 'candidat@demo.tn', password: '', full_name: '' }); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); async function submit(event) { event.preventDefault(); setLoading(true); setError(''); try { success(signup ? await api.register(form) : await api.login(form.email, form.password)) } catch (err) { setError(err.message) } finally { setLoading(false) } } return <main className="auth-page"><div className="auth-aside"><img className="auth-image" src="/jj.jpg" alt="Étudiante dans un espace universitaire" /><div className="auth-overlay" /><div className="auth-aside-content"><button className="back-link" onClick={back}>← Retour à l'accueil</button><Brand /><div className="auth-quote"><p className="eyebrow">VOTRE PROJET MÉRITE DE LA CLARTÉ</p><h1>Chaque parcours<br /><em>commence ici.</em></h1><p>Un espace unique pour explorer, comprendre et choisir avec confiance.</p></div></div></div><div className="auth-form"><div className="form-inner"><div className="mobile-brand"><Brand /></div><p className="eyebrow">{signup ? 'CRÉER MON ESPACE' : 'BON RETOUR'}</p><h2>{signup ? 'Commencez votre parcours.' : 'Ravi de vous revoir.'}</h2><p className="muted">{signup ? 'Quelques informations pour personnaliser votre orientation.' : 'Connectez-vous pour retrouver votre projet.'}</p><form onSubmit={submit}>{signup && <label>Nom complet<input required value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Yasmine Ben Ali" /></label>}<label>Adresse email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="vous@exemple.tn" /></label><label>Mot de passe<input required minLength="8" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="8 caractères minimum" /></label>{error && <div className="form-error">{error}</div>}<button className="button primary wide" disabled={loading}>{loading ? 'Connexion en cours…' : signup ? 'Créer mon espace →' : 'Se connecter →'}</button></form><div className="demo-box"><strong>Compte de démonstration</strong><span>{signup ? 'Ou utilisez une adresse email libre pour créer un compte.' : 'candidat@demo.tn · DemoCampus2026! (si démo activée)'}</span></div><p className="switch-auth">{signup ? 'Vous avez déjà un compte ?' : 'Pas encore de compte ?'} <button onClick={() => switchMode(signup ? 'login' : 'signup')}>{signup ? 'Se connecter' : 'Créer un compte'}</button></p></div></div></main> }
 function Candidate({ user, view, setView, theme, toggle, logout }) { const [data, setData] = useState({ programs: [], applications: [], recommendations: null }); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); useEffect(() => { Promise.all([api.programs(), api.applications(), api.recommendations()]).then(([programs, applications, recommendations]) => { setData({ programs, applications, recommendations }); setLoadError('') }).catch(err => setLoadError(err.message)).finally(() => setLoading(false)) }, [view]); return <div className={`app-shell ${view === 'dashboard' ? 'dashboard-shell' : ''}`}><aside className="sidebar"><Brand /><div className="side-label">ESPACE CANDIDAT</div><nav>{nav.map(item => <button className={view === item.id ? 'active' : ''} key={item.id} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}</nav><div className="sidebar-bottom"><div className="support"><span>?</span><div><strong>Besoin d'aide ?</strong><small>Parler à un conseiller</small></div></div><button className="logout" onClick={logout}>↪ Déconnexion</button></div></aside><main className="workspace"><header className={`app-header ${view === 'dashboard' ? 'dashboard-header' : ''}`}><div className="mobile-brand"><Brand /></div><div className={view === 'assistant' ? 'assistant-page-title' : ''}>{view === 'assistant' ? <><span className="header-assistant-orb">✦</span><div><h1>Assistant IA</h1><p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p></div></> : <><p className="date-label">VENDREDI 16 OCTOBRE 2026</p><h1>{nav.find(item => item.id === view)?.label || 'Mon profil'}</h1></>}</div><div className="header-actions"><Theme theme={theme} onClick={toggle} /><button className="notification" aria-label="Notifications"><Icon name="bell" /><i /></button><button className="profile-trigger" onClick={() => setView('profile')}><span className="avatar">{user.full_name?.slice(0, 1).toUpperCase() || 'C'}</span><span><strong>{user.full_name?.split(' ')[0] || 'Candidat'}</strong><small>Candidat</small></span></button></div></header><div className="content">{loading ? <div className="loading"><span />Chargement de votre espace…</div> : loadError ? <div className="form-error">{loadError}</div> : view === 'dashboard' ? <Dashboard user={user} data={data} setView={setView} /> : view === 'programs' ? <Programs programs={data.programs} /> : view === 'orientation' ? <Orientation data={data} setView={setView} /> : view === 'application' ? <Application data={data} setData={setData} /> : view === 'profile' ? <Profile user={user} /> : <Assistant />}</div></main></div> }
 
@@ -815,4 +845,323 @@ function Assistant() {
   )
 }
 function Admin({ user, theme, toggle, logout }) { const [data, setData] = useState(null); useEffect(() => { api.dashboard().then(setData).catch(() => setData({ applications: [], total_applications: 0, status_counts: {} })) }, []); return <div className="admin-shell"><header className="public-header"><Brand /><div className="admin-user"><span className="tag">ADMINISTRATION</span><span>{user.full_name}</span><Theme theme={theme} onClick={toggle} /><button className="button ghost" onClick={logout}>Déconnexion</button></div></header><main className="admin-content"><div className="page-intro"><p className="eyebrow">PILOTAGE · {user.role.replace('_', ' ')}</p><h2>La vue d'ensemble<br /><em>de vos admissions.</em></h2></div><div className="admin-kpis"><div><span>CANDIDATURES</span><strong>{data?.total_applications ?? '—'}</strong><small>Total reçu</small></div><div><span>STATUTS ACTIFS</span><strong>{data ? Object.values(data.status_counts).reduce((a, b) => a + b, 0) : '—'}</strong><small>À traiter</small></div><div><span>PROGRAMMES</span><strong>2</strong><small>IIT · ISB</small></div></div><div className="admin-table panel"><div className="panel-heading"><div><p className="eyebrow">FLUX RÉCENT</p><h3>Dernières candidatures</h3></div><button className="button ghost">Exporter CSV</button></div>{data?.applications?.length ? <table><thead><tr><th>ID</th><th>Programme</th><th>Statut</th><th>Créée le</th></tr></thead><tbody>{data.applications.map(application => <tr key={application.id}><td>#{String(application.id).padStart(4, '0')}</td><td>Application #{application.program_id}</td><td><span className="status">{application.status}</span></td><td>{new Date(application.created_at).toLocaleDateString('fr-FR')}</td></tr>)}</tbody></table> : <Empty text="Les candidatures apparaîtront ici dès leur réception." />}</div></main></div> }
+// SA-25 — Espace visiteur : même shell que le candidat, accès uniquement au chat
+function GuestShell({ theme, toggle, auth, onBack }) {
+  return (
+    <div className="app-shell">
+      {/* Sidebar visiteur */}
+      <aside className="sidebar">
+        <Brand />
+        <div className="side-label">ESPACE VISITEUR</div>
+        <nav>
+          <button className="active">
+            <span><Icon name="chat" /></span>Assistant IA
+          </button>
+          <button className="guest-nav-locked" onClick={() => auth('signup')} title="Créez un compte pour accéder">
+            <span><Icon name="home" /></span>Vue d'ensemble <span className="lock-badge">🔒</span>
+          </button>
+          <button className="guest-nav-locked" onClick={() => auth('signup')} title="Créez un compte pour accéder">
+            <span><Icon name="profile" /></span>Mon profil <span className="lock-badge">🔒</span>
+          </button>
+          <button className="guest-nav-locked" onClick={() => auth('signup')} title="Créez un compte pour accéder">
+            <span><Icon name="grid" /></span>Programmes <span className="lock-badge">🔒</span>
+          </button>
+          <button className="guest-nav-locked" onClick={() => auth('signup')} title="Créez un compte pour accéder">
+            <span><Icon name="spark" /></span>Mon orientation <span className="lock-badge">🔒</span>
+          </button>
+          <button className="guest-nav-locked" onClick={() => auth('signup')} title="Créez un compte pour accéder">
+            <span><Icon name="check" /></span>Ma candidature <span className="lock-badge">🔒</span>
+          </button>
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="guest-cta-side">
+            <p>Créez un compte gratuit pour accéder à toutes les fonctionnalités.</p>
+            <button className="button primary" onClick={() => auth('signup')}>Commencer →</button>
+            <button className="text-button" onClick={() => auth('login')}>J'ai déjà un compte</button>
+            <button className="text-button" style={{fontSize:'0.75rem',opacity:0.6}} onClick={onBack}>← Retour à l'accueil</button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Contenu principal */}
+      <main className="workspace">
+        <header className="app-header assistant-page-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="mobile-brand"><Brand /></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span className="header-assistant-orb">✦</span>
+            <div>
+              <h1>Assistant IA</h1>
+              <p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p>
+            </div>
+          </div>
+          <div className="header-actions">
+            <Theme theme={theme} onClick={toggle} />
+            <button className="button ghost" onClick={() => auth('login')}>Se connecter</button>
+            <button className="button primary" onClick={() => auth('signup')}>Créer un compte</button>
+          </div>
+        </header>
+
+        <div className="content">
+          <GuestAssistant onNeedLogin={auth} />
+        </div>
+      </main>
+    </div>
+  )
+}
+
+// SA-25/26 — Assistant complet pour le visiteur (même UI que l'assistant candidat)
+function GuestAssistant({ onNeedLogin }) {
+  const [messages, setMessages] = useState([
+    { sender: 'assistant', text: 'Bonjour ! Je suis votre assistant SmartCampus. Posez-moi vos questions sur les formations IIT/ISB ou sur votre projet professionnel.' }
+  ])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [convId, setConvId] = useState(() => Number(localStorage.getItem('smartcampus_guest_conversation_id')) || null)
+  const bottomRef = useRef(null)
+
+  // SA-26 : charger l'historique de session au montage
+  useEffect(() => {
+    const token = getGuestToken()
+    api.guestHistory(token).then(convs => {
+      if (convs.length > 0 && convs[0].messages.length > 0) {
+        setConvId(convs[0].id)
+        setMessages(convs[0].messages)
+        localStorage.setItem('smartcampus_guest_conversation_id', convs[0].id)
+      }
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, sending])
+
+  async function send(text = input) {
+    if (!text.trim() || sending) return
+    const userText = text.trim()
+    setInput('')
+    setMessages(prev => [...prev, { sender: 'user', text: userText }])
+    setSending(true)
+    try {
+      const result = await api.guestChat(userText, getGuestToken(), convId)
+      setConvId(result.conversation_id)
+      localStorage.setItem('smartcampus_guest_conversation_id', result.conversation_id)
+      setMessages(prev => [...prev, { sender: 'assistant', text: result.reply }])
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'assistant', text: err.message }])
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="assistant-layout">
+      <div className="chat panel">
+        <div className="chat-head">
+          <div className="chat-title">
+            <span className="assistant-orb">✦</span>
+            <div>
+              <p className="eyebrow">ASSISTANT SMARTCAMPUS</p>
+              <h2>Votre espace d'orientation interactive <span>👋</span></h2>
+              <p>Posez vos questions librement. Créez un compte pour sauvegarder votre parcours et obtenir des recommandations personnalisées.</p>
+            </div>
+          </div>
+          <span className="online"><i /> En ligne</span>
+        </div>
+
+        <div className="messages">
+          {messages.map((m, i) => (
+            <div dir="auto" className={`message ${m.sender}`} key={i}>
+              <span>{m.sender === 'assistant' ? '✦' : 'Vous'}</span>
+              <div>
+                <p>{m.text}</p>
+                {m.sender === 'assistant' && <small>Assistant SmartCampus</small>}
+              </div>
+            </div>
+          ))}
+          {sending && <div className="typing">L'assistant réfléchit…</div>}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="suggestions">
+          {[
+            'Quelles formations sont disponibles ?',
+            'Comparer prépa et licence',
+            'Quels sont les frais et conditions ?',
+          ].map(suggestion => (
+            <button key={suggestion} disabled={sending} onClick={() => send(suggestion)}>
+              <span>✦</span> {suggestion}
+            </button>
+          ))}
+        </div>
+
+        <form className="chat-input" onSubmit={e => { e.preventDefault(); send() }}>
+          <span className="attach" aria-hidden="true">↗</span>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Posez une question sur votre projet ou votre formation…"
+            disabled={sending}
+          />
+          <button disabled={sending} aria-label="Envoyer">➤</button>
+        </form>
+      </div>
+
+      {/* Aside visiteur */}
+      <aside className="assistant-aside">
+        <div className="profile-side guest-aside-cta">
+          <p className="eyebrow">FONCTIONNALITÉS COMPLÈTES</p>
+          <h3>Créez votre espace gratuit</h3>
+          <p>En créant un compte, vous débloquez :</p>
+          <ul className="guest-features-list">
+            <li>✦ Recommandations personnalisées selon votre profil</li>
+            <li>✦ Sauvegarde de vos conversations</li>
+            <li>✦ Suivi de candidature</li>
+            <li>✦ Comparaison détaillée des programmes</li>
+          </ul>
+          <button className="button primary wide" onClick={() => onNeedLogin('signup')}>
+            Créer mon espace gratuit →
+          </button>
+          <button className="text-button" onClick={() => onNeedLogin('login')}>
+            J'ai déjà un compte
+          </button>
+        </div>
+
+        <div className="source-list">
+          <strong>▣ &nbsp; Catalogues & Critères officiels</strong>
+          <span>↗ &nbsp; Formations IIT publiées (Ingénierie & Prépa) <b>›</b></span>
+          <span>↗ &nbsp; Formations ISB publiées (Licences & Finance) <b>›</b></span>
+        </div>
+
+        <div className="assistant-campus">
+          <img src="/iit3.jpg" alt="Campus IIT" />
+          <strong>Ton avenir<br /><em>commence ici</em></strong>
+          <span>⌁</span>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+// SA-29 — Bannière de rattachement affichée juste après connexion/inscription
+function ClaimBanner({ onDismiss }) {
+  const [status, setStatus] = useState('idle')
+  const [msg, setMsg] = useState('')
+
+  async function claim() {
+    const guestToken = localStorage.getItem('smartcampus_guest_token')
+    if (!guestToken) { onDismiss(); return }
+    setStatus('loading')
+    try {
+      const result = await api.claimGuestSession(guestToken)
+      setMsg(result.message)
+      setStatus('done')
+      clearGuestToken()
+      setTimeout(onDismiss, 3000)
+    } catch (err) {
+      setMsg(err.message || 'Impossible de rattacher la conversation.')
+      setStatus('error')
+    }
+  }
+
+  if (status === 'done') {
+    return <div className="claim-banner claim-success" role="status">✅ {msg}</div>
+  }
+
+  return (
+    <div className="claim-banner" role="alert">
+      <p>Vous aviez démarré une conversation en tant que visiteur. Voulez-vous la rattacher à votre compte ?</p>
+      {status === 'error' && <p className="claim-error">{msg}</p>}
+      <div className="claim-actions">
+        <button onClick={claim} disabled={status === 'loading'} className="button primary">
+          {status === 'loading' ? 'Rattachement…' : 'Oui, récupérer ma conversation'}
+        </button>
+        <button onClick={() => { clearGuestToken(); onDismiss() }} className="button ghost">Non, ignorer</button>
+      </div>
+    </div>
+  )
+}
+
+// SA-25 / SA-26 — Chat visiteur intégré dans la landing page (sans compte)
+function GuestChat({ onNeedLogin }) {
+  const [messages, setMessages] = useState([
+    { sender: 'assistant', text: 'Bonjour ! Je suis SmartCampus. Posez-moi vos questions sur les formations IIT/ISB.' }
+  ])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [convId, setConvId] = useState(() => Number(localStorage.getItem('smartcampus_guest_conversation_id')) || null)
+  const bottomRef = useRef(null)
+
+  // Charger l'historique existant au montage (SA-26)
+  useEffect(() => {
+    const token = getGuestToken()
+    api.guestHistory(token).then(convs => {
+      if (convs.length > 0) {
+        setConvId(convs[0].id)
+        if (convs[0].messages.length > 0) setMessages(convs[0].messages)
+        localStorage.setItem('smartcampus_guest_conversation_id', convs[0].id)
+      }
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  async function send(text = input) {
+    if (!text.trim() || sending) return
+    const userText = text.trim()
+    setInput('')
+    setMessages(prev => [...prev, { sender: 'user', text: userText }])
+    setSending(true)
+    try {
+      const result = await api.guestChat(userText, getGuestToken(), convId)
+      setConvId(result.conversation_id)
+      localStorage.setItem('smartcampus_guest_conversation_id', result.conversation_id)
+      setMessages(prev => [...prev, { sender: 'assistant', text: result.reply }])
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'assistant', text: err.message }])
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <section className="guest-chat-section" id="essayer">
+      <div className="guest-chat-intro">
+        <p className="eyebrow">ESSAYER MAINTENANT</p>
+        <h2>Posez votre question,<br /><em>sans créer de compte.</em></h2>
+        <p>Votre conversation est conservée 24 h. Inscrivez-vous pour la sauvegarder.</p>
+      </div>
+      <div className="chat panel guest-chat-panel">
+        <div className="chat-head">
+          <div>
+            <p className="eyebrow">ASSISTANT SMARTCAMPUS</p>
+            <h3>Chat visiteur <span className="guest-badge">Aucun compte requis</span></h3>
+          </div>
+          {messages.length > 1 && onNeedLogin && (
+            <button className="button ghost small" onClick={onNeedLogin}>
+              💾 Sauvegarder ma conversation
+            </button>
+          )}
+        </div>
+        <div className="messages">
+          {messages.map((m, i) => (
+            <div key={i} dir="auto" className={`message ${m.sender}`}>
+              <span>{m.sender === 'assistant' ? '✦' : 'Vous'}</span>
+              <div><p>{m.text}</p></div>
+            </div>
+          ))}
+          {sending && <div className="typing">L'assistant réfléchit…</div>}
+          <div ref={bottomRef} />
+        </div>
+        <form className="chat-input" onSubmit={e => { e.preventDefault(); send() }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Quelle formation correspond à mon profil ?"
+            disabled={sending}
+          />
+          <button disabled={sending || !input.trim()} aria-label="Envoyer">➤</button>
+        </form>
+      </div>
+    </section>
+  )
+}
+
 function Empty({ text }) { return <EmptyState message={text} /> }
