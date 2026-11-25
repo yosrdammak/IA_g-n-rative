@@ -1,28 +1,20 @@
-import os
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, text
 from alembic import context
-
+from sqlalchemy import engine_from_config, pool
+from app.config import DATABASE_URL
 from app.database import Base
 from app import models  # noqa: F401
 
 config = context.config
-
 if config.config_file_name:
     fileConfig(config.config_file_name)
-
-db_url = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://smartuser:smartpassword@postgres:5432/smartcampus_db"
-)
-config.set_main_option("sqlalchemy.url", db_url)
-
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 target_metadata = Base.metadata
 
-def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+
+def run_migrations_offline():
     context.configure(
-        url=url,
+        url=DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -30,20 +22,18 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-def run_migrations_online() -> None:
+
+def run_migrations_online():
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-        context.configure(
-            connection=connection, 
-            target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()

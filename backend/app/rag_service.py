@@ -137,14 +137,16 @@ def _build_or_load_vectorstore(chroma_path: str, embed_model: str, pdf_path: str
 
     chroma_dir = Path(chroma_path)
 
-    # Si la base existe déjà et que le PDF source est disponible, on la charge
+    vectorstore = None
     if chroma_dir.exists() and any(chroma_dir.iterdir()):
         logger.info("RAG: Chargement de la base vectorielle existante : %s", chroma_path)
         vectorstore = Chroma(
             persist_directory=chroma_path,
             embedding_function=embeddings,
         )
-        return vectorstore, embeddings
+        if vectorstore.get(limit=1)["ids"]:
+            return vectorstore, embeddings
+        logger.warning("RAG: Base vectorielle vide, reconstruction depuis le PDF source.")
 
     # Sinon on (re)crée la base depuis le PDF
     if not Path(pdf_path).exists():
