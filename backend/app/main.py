@@ -5,13 +5,15 @@ import time
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 import httpx
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+
+from .agentic_rag import DEPARTMENTS
 from .config import CORS_ORIGINS, GOOGLE_CLIENT_ID
 from .seed import seed_demo
 from .services import (
@@ -21,7 +23,12 @@ from .services import (
     SUBJECTS,
     SECTION_SUBJECTS,
 )
-from .rag_service import rag_answer, is_rag_available, rebuild_index
+from .rag_service import (
+    list_rag_documents,
+    rag_answer,
+    rag_status as get_rag_status,
+    rebuild_index,
+)
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Annotated, Literal, Optional
 from .database import get_db, SessionLocal
@@ -45,6 +52,7 @@ async def lifespan(app: FastAPI):
         with SessionLocal() as db:
             seed_demo(db)
     yield
+ 
 
 
 app = FastAPI(title="SmartCampus AI API", version="1.0.0", lifespan=lifespan)
@@ -713,14 +721,23 @@ class RagChatIn(InputModel):
 @app.get("/api/rag/status")
 def rag_status():
     """Vérifie si le service RAG (Ollama + ChromaDB) est disponible."""
-    available = is_rag_available()
-    return {
-        "available": available,
-        "embed_model": os.getenv("RAG_EMBED_MODEL", "bge-m3"),
-        "llm_model": os.getenv("RAG_LLM_MODEL", "llama3.2:3b"),
-        "ollama_url": os.getenv("OLLAMA_URL", "http://localhost:11434"),
-    }
+    return get_rag_status()
+@app.get("/api/rag/departments")
+def rag_departments():
+    return DEPARTMENTS
 
+
+@app.get("/api/rag/documents")
+def rag_documents():
+    return list_rag_documents()
+
+
+@app.get("/api/rag/documents/{document_id}/file")
+def rag_document_file(document_id: int):
+    path = rag_document_file(document_id)
+    if path is None:
+        raise HTTPException(404, "Document RAG introuvable")
+    return FileResponse(path, media_type="application/pdf", filename=path.name)
 
 @app.post("/api/rag/chat")
 def rag_chat(

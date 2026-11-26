@@ -1,5 +1,4 @@
 version: "3.8"
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -25,6 +24,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://smartuser:smartpassword@postgres:5432/smartcampus_DB
       - OLLAMA_URL=http://host.docker.internal:11434
+      - RAG_DATA_DIR=/app/data
+      - RAG_CHROMA_PATH=/app/chroma_agentic
+      - RAG_LLM_MODEL=qwen2.5:7b
+      - RAG_EMBED_MODEL=bge-m3
     volumes:
       - ./backend:/app
     depends_on:

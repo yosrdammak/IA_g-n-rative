@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, clearSession, saveSession, storedUser } from './api'
 import EmptyState from './components/shared/EmptyState'
 import './SmartCampus.css'
+import Sidebar from './components/Sidebar'
 import './components/components.css'
 import './components/rag.css'
 
@@ -124,7 +125,83 @@ function GoogleSignIn({ onSuccess, onError, disabled }) {
   )
 }
 function Auth({ mode, switchMode, success, back }) { const signup = mode === 'signup'; const [form, setForm] = useState({ email: signup ? '' : 'candidat@demo.tn', password: '', full_name: '' }); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); async function submit(event) { event.preventDefault(); setLoading(true); setError(''); try { success(signup ? await api.register(form) : await api.login(form.email, form.password)) } catch (err) { setError(err.message) } finally { setLoading(false) } } return <main className="auth-page"><div className="auth-aside"><img className="auth-image" src="/jj.jpg" alt="Étudiante dans un espace universitaire" /><div className="auth-overlay" /><div className="auth-aside-content"><button className="back-link" onClick={back}>← Retour à l'accueil</button><Brand /><div className="auth-quote"><p className="eyebrow">VOTRE PROJET MÉRITE DE LA CLARTÉ</p><h1>Chaque parcours<br /><em>commence ici.</em></h1><p>Un espace unique pour explorer, comprendre et choisir avec confiance.</p></div></div></div><div className="auth-form"><div className="form-inner"><div className="mobile-brand"><Brand /></div><p className="eyebrow">{signup ? 'CRÉER MON ESPACE' : 'BON RETOUR'}</p><h2>{signup ? 'Commencez votre parcours.' : 'Ravi de vous revoir.'}</h2><p className="muted">{signup ? 'Connectez-vous rapidement avec Google ou créez votre compte manuellement.' : 'Connectez-vous avec Google ou avec vos identifiants.'}</p><div className="google-section"><GoogleSignIn onSuccess={success} onError={setError} disabled={loading} /></div><div className="auth-divider"><span>ou manuellement par email</span></div><form onSubmit={submit}>{signup && <label>Nom complet<input required value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Yasmine Ben Ali" /></label>}<label>Adresse email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="vous@exemple.tn" /></label><label>Mot de passe<input required minLength="8" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="8 caractères minimum" /></label>{error && <div className="form-error">{error}</div>}<button className="button primary wide" disabled={loading}>{loading ? 'Connexion en cours…' : signup ? 'Créer mon espace →' : 'Se connecter →'}</button></form><div className="demo-box"><strong>Compte de démonstration</strong><span>{signup ? 'Ou utilisez une adresse email libre pour créer un compte.' : 'candidat@demo.tn · DemoCampus2026! (si démo activée)'}</span></div><p className="switch-auth">{signup ? 'Vous avez déjà un compte ?' : 'Pas encore de compte ?'} <button onClick={() => switchMode(signup ? 'login' : 'signup')}>{signup ? 'Se connecter' : 'Créer un compte'}</button></p></div></div></main> }
-function Candidate({ user, view, setView, theme, toggle, logout }) { const [data, setData] = useState({ programs: [], applications: [], recommendations: null }); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); useEffect(() => { Promise.all([api.programs(), api.applications(), api.recommendations()]).then(([programs, applications, recommendations]) => { setData({ programs, applications, recommendations }); setLoadError('') }).catch(err => setLoadError(err.message)).finally(() => setLoading(false)) }, [view]); return <div className={`app-shell ${view === 'dashboard' ? 'dashboard-shell' : ''}`}><aside className="sidebar"><Brand /><div className="side-label">ESPACE CANDIDAT</div><nav>{nav.map(item => <button className={view === item.id ? 'active' : ''} key={item.id} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}</nav><div className="sidebar-bottom"><div className="support"><span>?</span><div><strong>Besoin d'aide ?</strong><small>Parler à un conseiller</small></div></div><button className="logout" onClick={logout}>↪ Déconnexion</button></div></aside><main className="workspace"><header className={`app-header ${view === 'dashboard' ? 'dashboard-header' : ''}`}><div className="mobile-brand"><Brand /></div><div className={view === 'assistant' ? 'assistant-page-title' : ''}>{view === 'assistant' ? <><span className="header-assistant-orb">✦</span><div><h1>Assistant IA</h1><p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p></div></> : <><p className="date-label">VENDREDI 16 OCTOBRE 2026</p><h1>{nav.find(item => item.id === view)?.label || 'Mon profil'}</h1></>}</div><div className="header-actions"><Theme theme={theme} onClick={toggle} /><button className="notification" aria-label="Notifications"><Icon name="bell" /><i /></button><button className="profile-trigger" onClick={() => setView('profile')}><span className="avatar">{user.full_name?.slice(0, 1).toUpperCase() || 'C'}</span><span><strong>{user.full_name?.split(' ')[0] || 'Candidat'}</strong><small>Candidat</small></span></button></div></header><div className="content">{loading ? <div className="loading"><span />Chargement de votre espace…</div> : loadError ? <div className="form-error">{loadError}</div> : view === 'dashboard' ? <Dashboard user={user} data={data} setView={setView} /> : view === 'programs' ? <Programs programs={data.programs} /> : view === 'orientation' ? <Orientation data={data} setView={setView} /> : view === 'application' ? <Application data={data} setData={setData} /> : view === 'profile' ? <Profile user={user} /> : <Assistant />}</div></main></div> }
+function Candidate({ user, view, setView, theme, toggle, logout }) {
+  const [data, setData] = useState({ programs: [], applications: [], recommendations: null })
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 1024)
+
+  useEffect(() => {
+    Promise.all([api.programs(), api.applications(), api.recommendations()])
+      .then(([programs, applications, recommendations]) => {
+        setData({ programs, applications, recommendations })
+        setLoadError('')
+      })
+      .catch(err => setLoadError(err.message))
+      .finally(() => setLoading(false))
+  }, [view])
+
+  return (
+    <div className={`app-shell ${view === 'dashboard' ? 'dashboard-shell' : ''} ${view === 'assistant' ? 'assistant-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <Sidebar
+        items={nav}
+        activeView={view}
+        onNavigate={setView}
+        onLogout={logout}
+        collapsed={sidebarCollapsed}
+        onCollapseChange={setSidebarCollapsed}
+      />
+      <main className="workspace">
+        <header className={`app-header ${view === 'dashboard' ? 'dashboard-header' : ''}`}>
+          <div className="mobile-brand"><Brand /></div>
+          <div className={view === 'assistant' ? 'assistant-page-title' : ''}>
+            {view === 'assistant' ? (
+              <>
+                <span className="header-assistant-orb">✦</span>
+                <div>
+                  <h1>Assistant IA</h1>
+                  <p>Votre compagnon intelligent pour répondre à toutes vos questions sur SmartCampus.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="date-label">VENDREDI 16 OCTOBRE 2026</p>
+                <h1>{nav.find(item => item.id === view)?.label || 'Mon profil'}</h1>
+              </>
+            )}
+          </div>
+          <div className="header-actions">
+            <Theme theme={theme} onClick={toggle} />
+            <button className="notification" aria-label="Notifications"><Icon name="bell" /><i /></button>
+            <button className="profile-trigger" onClick={() => setView('profile')}>
+              <span className="avatar">{user.full_name?.slice(0, 1).toUpperCase() || 'C'}</span>
+              <span><strong>{user.full_name?.split(' ')[0] || 'Candidat'}</strong><small>Candidat</small></span>
+            </button>
+          </div>
+        </header>
+        <div className="content">
+          {loading ? (
+            <div className="loading"><span />Chargement de votre espace…</div>
+          ) : loadError ? (
+            <div className="form-error">{loadError}</div>
+          ) : view === 'dashboard' ? (
+            <Dashboard user={user} data={data} setView={setView} />
+          ) : view === 'programs' ? (
+            <Programs programs={data.programs} />
+          ) : view === 'orientation' ? (
+            <Orientation data={data} setView={setView} />
+          ) : view === 'application' ? (
+            <Application data={data} setData={setData} />
+          ) : view === 'profile' ? (
+            <Profile user={user} />
+          ) : (
+            <Assistant setView={setView} />
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}
 
 const DEFAULT_INTERESTS = [
   { id: 'ai_data', label: 'Intelligence Artificielle & Data', icon: '🤖' },
@@ -795,19 +872,27 @@ function formatDuration(seconds) {
   return `${mins} min ${String(secs).padStart(2, '0')} s`
 }
 
-function Assistant() {
+function Assistant({ setView }) {
   const [conversationId, setConversationId] = useState(null)
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [history, setHistory] = useState([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [expandedSources, setExpandedSources] = useState(null)
   const [messages, setMessages] = useState([
     { sender: 'assistant', text: 'Bonjour ! Je suis votre assistant SmartCampus. Posez-moi vos questions sur les formations IIT/ISB ou sur votre projet professionnel.' },
   ])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [candidateProfile, setCandidateProfile] = useState(null)
+  const [showScrollDown, setShowScrollDown] = useState(false)
+  const messagesRef = useRef(null)
+  const followLatestMessage = useRef(true)
 
   useEffect(() => {
     api.conversations()
       .then(items => {
+        setHistory(items)
         if (items.length) {
           setConversationId(items[0].id)
           setMessages(items[0].messages)
@@ -821,6 +906,73 @@ function Assistant() {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    const element = messagesRef.current
+    if (!element) return undefined
+
+    function updateScrollState() {
+      const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 48
+      followLatestMessage.current = atBottom
+      setShowScrollDown(!atBottom)
+    }
+
+    element.addEventListener('scroll', updateScrollState, { passive: true })
+    updateScrollState()
+    return () => element.removeEventListener('scroll', updateScrollState)
+  }, [])
+
+  useEffect(() => {
+    const element = messagesRef.current
+    if (element && followLatestMessage.current) {
+      element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+    }
+  }, [messages, sending])
+
+  function startNewChat() {
+    setConversationId(null)
+    setMessages([
+      { sender: 'assistant', text: 'Bonjour ! Je suis votre assistant SmartCampus. Posez-moi vos questions sur les formations IIT/ISB ou sur votre projet professionnel.' },
+    ])
+    setInput('')
+    setExpandedSources(null)
+    setHistoryOpen(false)
+    setHistoryError('')
+    followLatestMessage.current = true
+  }
+
+  async function toggleHistory() {
+    if (historyOpen) {
+      setHistoryOpen(false)
+      return
+    }
+
+    setHistoryOpen(true)
+    setHistoryLoading(true)
+    setHistoryError('')
+    try {
+      setHistory(await api.conversations())
+    } catch (err) {
+      setHistoryError(err.message || "Impossible de charger l'historique.")
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  function openConversation(conversation) {
+    setConversationId(conversation.id)
+    setMessages(conversation.messages)
+    setExpandedSources(null)
+    setHistoryOpen(false)
+    followLatestMessage.current = true
+  }
+
+  function scrollToLatestMessage() {
+    const element = messagesRef.current
+    if (!element) return
+    followLatestMessage.current = true
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+  }
+
   async function send(text = input) {
     if (!text.trim() || sending || historyLoading) return
     setMessages(current => [...current, { sender: 'user', text }])
@@ -832,7 +984,13 @@ function Assistant() {
       const fallbackSec = (performance.now() - t0) / 1000
       const generation_seconds = result.generation_seconds ?? fallbackSec
       setConversationId(result.conversation_id)
-      setMessages(current => [...current, { sender: 'assistant', text: result.reply, generation_seconds }])
+      setMessages(current => [...current, {
+        sender: 'assistant',
+        text: result.reply,
+        generation_seconds,
+        sources: result.sources || [],
+        mode: result.mode || 'rag',
+      }])
     } catch (err) {
       setMessages(current => [...current, { sender: 'assistant', text: err.message }])
     } finally {
@@ -842,35 +1000,143 @@ function Assistant() {
 
   return (
     <div className="assistant-layout">
-      <div className="chat panel">
-        <div className="chat-head">
-          <div className="chat-title">
-            <span className="assistant-orb">✦</span>
-            <div>
-              <p className="eyebrow">ASSISTANT SMARTCAMPUS</p>
-              <h2>Votre espace d'orientation interactive <span>👋</span></h2>
-              <p>Posez vos questions : l'assistant exploite votre profil, votre objectif professionnel et les formations officielles.</p>
+      <div className="assistant-main-column">
+        <section className="assistant-hero">
+          <div className="assistant-hero-copy">
+            <span className="assistant-hero-tag"><span>✦</span> SmartCampus AI</span>
+            <h2>Votre espace d'orientation interactive</h2>
+            <p>Posez vos questions : l'assistant exploite votre profil, votre objectif professionnel et les formations officielles.</p>
+            <div className="assistant-hero-actions">
+              <button type="button" className="assistant-hero-primary" onClick={startNewChat} disabled={sending || historyLoading}>
+                <span>▣</span> Nouvelle discussion
+              </button>
+              <button
+                type="button"
+                className="assistant-hero-secondary"
+                onClick={toggleHistory}
+                disabled={sending}
+                aria-expanded={historyOpen}
+              >
+                <span>◷</span> Historique
+              </button>
             </div>
           </div>
-          <span className="online"><i /> En ligne</span>
-        </div>
-        <div className="messages">
-          {messages.map((message, i) => (
+          <div className="assistant-hero-art" aria-hidden="true">
+            <svg viewBox="0 0 250 190" role="presentation">
+              <ellipse cx="145" cy="168" rx="91" ry="12" fill="#9fc6ff" opacity=".45" />
+              <path d="M56 148h135l-17 19H73z" fill="#1749c5" />
+              <path d="m75 146 12-45h83l17 45z" fill="#2465ea" />
+              <path d="m87 141 8-32h65l11 32z" fill="#0b225a" />
+              <circle cx="137" cy="72" r="44" fill="#eef7ff" stroke="#8ebcff" strokeWidth="5" />
+              <rect x="101" y="52" width="72" height="48" rx="19" fill="#092352" />
+              <path d="M113 72q8-11 16 0M145 72q8-11 16 0" fill="none" stroke="#45e3ff" strokeWidth="4" strokeLinecap="round" />
+              <path d="M128 85q9 8 18 0" fill="none" stroke="#45e3ff" strokeWidth="3" strokeLinecap="round" />
+              <path d="M118 33 104 18l36-10 44 14-32 13z" fill="#08215a" />
+              <path d="m104 18 1 11 34 12 1-19z" fill="#1749c5" />
+              <path d="M182 29v34" stroke="#f0aa18" strokeWidth="3" />
+              <circle cx="182" cy="67" r="5" fill="#f0aa18" />
+              <rect x="36" y="69" width="48" height="35" rx="13" fill="#fff" />
+              <path d="m63 102 8 10 3-10" fill="#fff" />
+              <circle cx="51" cy="86" r="3" fill="#3e82f5" />
+              <circle cx="61" cy="86" r="3" fill="#3e82f5" />
+              <circle cx="71" cy="86" r="3" fill="#3e82f5" />
+              <path d="m210 43 4 11 11 4-11 4-4 11-4-11-11-4 11-4z" fill="#4ab7ff" />
+              <path d="m71 36 3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#fff" />
+            </svg>
+          </div>
+        </section>
+      <div className="chat panel">
+        {historyOpen && (
+          <aside className="chat-history" aria-label="Historique des conversations">
+            <div className="chat-history-head">
+              <strong>Vos conversations</strong>
+              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Fermer l'historique">×</button>
+            </div>
+            {historyLoading ? (
+              <p className="chat-history-empty">Chargement de l'historique…</p>
+            ) : historyError ? (
+              <p className="chat-history-error" role="alert">{historyError}</p>
+            ) : history.length ? (
+              <div className="chat-history-list">
+                {history.map(conversation => {
+                  const firstUserMessage = conversation.messages.find(message => message.sender === 'user')
+                  const title = firstUserMessage?.text || 'Conversation sans message'
+                  return (
+                    <button
+                      type="button"
+                      className={`chat-history-item${conversation.id === conversationId ? ' active' : ''}`}
+                      key={conversation.id}
+                      onClick={() => openConversation(conversation)}
+                      disabled={sending}
+                    >
+                      <strong>{title.length > 58 ? `${title.slice(0, 58)}…` : title}</strong>
+                      <span>{conversation.messages.length} message{conversation.messages.length === 1 ? '' : 's'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="chat-history-empty">Aucune conversation enregistrée.</p>
+            )}
+          </aside>
+        )}
+        <div className="messages-wrap">
+          <div className="messages" ref={messagesRef}>
+            {messages.map((message, i) => (
             <div dir="auto" className={`message ${message.sender}`} key={i}>
               <span>{message.sender === 'assistant' ? '✦' : 'Vous'}</span>
               <div>
                 <p>{message.text}</p>
                 {message.sender === 'assistant' && (
                   <small>
-                    Assistant SmartCampus
+                    {message.mode === 'rag_error' ? 'RAG indisponible' : 'Assistant SmartCampus'}
                     {message.generation_seconds != null ? ` · Généré en ${formatDuration(message.generation_seconds)}` : ''}
                   </small>
                 )}
+                {message.sender === 'assistant' && message.sources?.length > 0 && (
+                  <>
+                    <button
+                      className="sources-toggle link-btn"
+                      onClick={() => setExpandedSources(expandedSources === i ? null : i)}
+                      aria-expanded={expandedSources === i}
+                    >
+                      {expandedSources === i ? 'Masquer les sources' : `${message.sources.length} source${message.sources.length > 1 ? 's' : ''}`}
+                    </button>
+                    {expandedSources === i && (
+                      <ul className="sources-list" aria-label="Sources utilisées">
+                        {message.sources.map(source => (
+                          <li className="source-item" key={`${source.id}-${source.document}`}>
+                            <strong>{source.id}</strong> — {source.titre}
+                            <span className="source-cat"> · {source.document} · {source.dept}</span>
+                            <p className="source-extrait">{source.extrait}</p>
+                            {source.source_url && (
+                              <a href={source.source_url} target="_blank" rel="noopener noreferrer" className="source-link">
+                                Source officielle
+                              </a>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
             </div>
-          ))}
-          {historyLoading && <div className="typing">Chargement de la conversation…</div>}
-          {sending && <div className="typing">L'assistant réfléchit en exploitant votre profil…</div>}
+            ))}
+            {historyLoading && !historyOpen && <div className="typing">Chargement de la conversation…</div>}
+            {sending && <div className="typing">L'assistant réfléchit en exploitant votre profil…</div>}
+          </div>
+          {showScrollDown && (
+            <button
+              type="button"
+              className="chat-scroll-down"
+              onClick={scrollToLatestMessage}
+              aria-label="Faire défiler jusqu'au dernier message"
+              title="Aller au dernier message"
+            >
+              ↓
+            </button>
+          )}
         </div>
         <div className="suggestions">
           {[
@@ -889,13 +1155,14 @@ function Assistant() {
           <button disabled={sending || historyLoading} aria-label="Envoyer">➤</button>
         </form>
       </div>
+      </div>
 
       <aside className="assistant-aside">
         <div className="profile-side">
-          <p className="eyebrow">PROFIL ANALYSÉ PAR L'IA</p>
+          <p className="eyebrow"><span>✓</span> Profil analysé par l'IA</p>
           {candidateProfile?.goals ? (
             <>
-              <h3>Objectif professionnel ciblé</h3>
+              <h3>Votre objectif professionnel</h3>
               <div className="assistant-goal-card">
                 <span className="goal-icon">🎯</span>
                 <p className="goal-text">« {candidateProfile.goals} »</p>
@@ -903,33 +1170,193 @@ function Assistant() {
               <button
                 className="profile-complete"
                 onClick={() => send(`Selon mon objectif professionnel (« ${candidateProfile.goals} »), quelles sont les formations les plus adaptées ?`)}
+                disabled={sending || historyLoading}
               >
-                Explorer mon objectif <span>→</span>
+                Compléter mon profil <span>→</span>
               </button>
             </>
           ) : (
             <>
               <h3>Votre projet se précise.</h3>
               <p>Renseignez votre objectif professionnel dans votre profil pour que l'assistant formule des réponses ultra-ciblées.</p>
-              <button className="profile-complete" onClick={() => window.location.pathname = '/candidat/profil'}>
+              <button className="profile-complete" onClick={() => setView('profile')}>
                 Définir mon objectif <span>→</span>
               </button>
             </>
           )}
         </div>
         <div className="source-list">
-          <strong>▣ &nbsp; Catalogues & Critères officiels</strong>
-          <span>↗ &nbsp; Formations IIT publiées (Ingénierie & Prépa) <b>›</b></span>
-          <span>↗ &nbsp; Formations ISB publiées (Licences & Finance) <b>›</b></span>
+          <strong><span>▣</span> Catalogues &amp; Critères officiels</strong>
+          <button type="button" onClick={() => setView('programs')}>
+            <span className="catalogue-icon">▤</span> Formations IIT publiées (Ingénierie &amp; Prépa) <b>›</b>
+          </button>
+          <button type="button" onClick={() => setView('programs')}>
+            <span className="catalogue-icon">▤</span> Formations ISB publiées (Licences &amp; Finance) <b>›</b>
+          </button>
         </div>
         <div className="assistant-campus">
           <img src="/iit3.jpg" alt="Campus IIT" />
+          <span className="assistant-campus-tag">SmartCampus</span>
           <strong>Ton avenir<br /><em>commence ici</em></strong>
-          <span>⌁</span>
+          <p>Construis ton parcours, atteins tes objectifs.</p>
+          <button type="button" onClick={() => setView('programs')}>Découvrir SmartCampus →</button>
         </div>
       </aside>
     </div>
   )
 }
-function Admin({ user, theme, toggle, logout }) { const [data, setData] = useState(null); useEffect(() => { api.dashboard().then(setData).catch(() => setData({ applications: [], total_applications: 0, status_counts: {} })) }, []); return <div className="admin-shell"><header className="public-header"><Brand /><div className="admin-user"><span className="tag">ADMINISTRATION</span><span>{user.full_name}</span><Theme theme={theme} onClick={toggle} /><button className="button ghost" onClick={logout}>Déconnexion</button></div></header><main className="admin-content"><div className="page-intro"><p className="eyebrow">PILOTAGE · {user.role.replace('_', ' ')}</p><h2>La vue d'ensemble<br /><em>de vos admissions.</em></h2></div><div className="admin-kpis"><div><span>CANDIDATURES</span><strong>{data?.total_applications ?? '—'}</strong><small>Total reçu</small></div><div><span>STATUTS ACTIFS</span><strong>{data ? Object.values(data.status_counts).reduce((a, b) => a + b, 0) : '—'}</strong><small>À traiter</small></div><div><span>PROGRAMMES</span><strong>2</strong><small>IIT · ISB</small></div></div><div className="admin-table panel"><div className="panel-heading"><div><p className="eyebrow">FLUX RÉCENT</p><h3>Dernières candidatures</h3></div><button className="button ghost">Exporter CSV</button></div>{data?.applications?.length ? <table><thead><tr><th>ID</th><th>Programme</th><th>Statut</th><th>Créée le</th></tr></thead><tbody>{data.applications.map(application => <tr key={application.id}><td>#{String(application.id).padStart(4, '0')}</td><td>Application #{application.program_id}</td><td><span className="status">{application.status}</span></td><td>{new Date(application.created_at).toLocaleDateString('fr-FR')}</td></tr>)}</tbody></table> : <Empty text="Les candidatures apparaîtront ici dès leur réception." />}</div></main></div> }
+function Admin({ user, theme, toggle, logout }) {
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    api.dashboard()
+      .then(setData)
+      .catch(() => setData({ applications: [], total_applications: 0, status_counts: {} }))
+  }, [])
+
+  return (
+    <div className="admin-shell">
+      <header className="public-header">
+        <Brand />
+        <div className="admin-user">
+          <span className="tag">ADMINISTRATION</span>
+          <span>{user.full_name}</span>
+          <Theme theme={theme} onClick={toggle} />
+          <button className="button ghost" onClick={logout}>Déconnexion</button>
+        </div>
+      </header>
+      <main className="admin-content">
+        <div className="page-intro">
+          <p className="eyebrow">PILOTAGE · {user.role.replace('_', ' ')}</p>
+          <h2>La vue d'ensemble<br /><em>de vos admissions.</em></h2>
+        </div>
+        <div className="admin-kpis">
+          <div><span>CANDIDATURES</span><strong>{data?.total_applications ?? '—'}</strong><small>Total reçu</small></div>
+          <div><span>STATUTS ACTIFS</span><strong>{data ? Object.values(data.status_counts).reduce((a, b) => a + b, 0) : '—'}</strong><small>À traiter</small></div>
+          <div><span>PROGRAMMES</span><strong>2</strong><small>IIT · ISB</small></div>
+        </div>
+        <AdminRagPanel canRebuild={['admin', 'direction'].includes(user.role)} />
+        <div className="admin-table panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">FLUX RÉCENT</p><h3>Dernières candidatures</h3></div>
+            <button className="button ghost">Exporter CSV</button>
+          </div>
+          {data?.applications?.length ? (
+            <table>
+              <thead><tr><th>ID</th><th>Programme</th><th>Statut</th><th>Créée le</th></tr></thead>
+              <tbody>{data.applications.map(application => (
+                <tr key={application.id}>
+                  <td>#{String(application.id).padStart(4, '0')}</td>
+                  <td>Application #{application.program_id}</td>
+                  <td><span className="status">{application.status}</span></td>
+                  <td>{new Date(application.created_at).toLocaleDateString('fr-FR')}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          ) : <Empty text="Les candidatures apparaîtront ici dès leur réception." />}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function AdminRagPanel({ canRebuild }) {
+  const [status, setStatus] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [rebuilding, setRebuilding] = useState(false)
+  const [error, setError] = useState('')
+  const [report, setReport] = useState(null)
+
+  async function load() {
+    try {
+      const [nextStatus, nextDocuments, nextDepartments] = await Promise.all([
+        api.ragStatus(),
+        api.ragDocuments(),
+        api.ragDepartments(),
+      ])
+      setStatus(nextStatus)
+      setDocuments(nextDocuments)
+      setDepartments(nextDepartments)
+    } catch (err) {
+      setError(err.message || 'Impossible de charger la base documentaire.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+    Promise.all([api.ragStatus(), api.ragDocuments(), api.ragDepartments()])
+      .then(([nextStatus, nextDocuments, nextDepartments]) => {
+        if (!active) return
+        setStatus(nextStatus)
+        setDocuments(nextDocuments)
+        setDepartments(nextDepartments)
+      })
+      .catch(err => {
+        if (active) setError(err.message || 'Impossible de charger la base documentaire.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  async function rebuild() {
+    setRebuilding(true)
+    setError('')
+    setReport(null)
+    try {
+      const result = await api.ragRebuild()
+      setReport(result)
+      if (!result.success) throw new Error(result.error || 'Le rechargement a échoué.')
+      await load()
+    } catch (err) {
+      setError(err.message || "Impossible de recharger l'index RAG.")
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
+  return (
+    <section className="admin-table panel" aria-label="Base de connaissances RAG">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">ASSISTANT DOCUMENTAIRE</p>
+          <h3>Base de connaissances IIT · 2I2S</h3>
+          <p>{status?.available ? 'Index opérationnel' : status?.error || 'Vérification en cours…'}</p>
+        </div>
+        {canRebuild && (
+          <button className="button ghost" onClick={rebuild} disabled={loading || rebuilding}>
+            {rebuilding ? 'Rechargement…' : 'Recharger les PDF'}
+          </button>
+        )}
+      </div>
+      {status && (
+        <p>
+          {status.documents} document(s) · {status.chunks} sections indexées · {departments.length} départements ·
+          {' '}{status.llm_model} / {status.embed_model}
+        </p>
+      )}
+      {error && <p className="chat-error" role="alert">{error}</p>}
+      {report?.warnings?.length > 0 && (
+        <ul className="chat-error">{report.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+      )}
+      {documents.length > 0 && (
+        <table>
+          <thead><tr><th>Document PDF</th><th>Département</th><th>Modifié</th></tr></thead>
+          <tbody>{documents.map(document => (
+            <tr key={document.id}>
+              <td>{document.file_name}</td>
+              <td>{document.department}</td>
+              <td>{new Date(document.updated_at).toLocaleDateString('fr-FR')}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
+    </section>
+  )
+}
 function Empty({ text }) { return <EmptyState message={text} /> }

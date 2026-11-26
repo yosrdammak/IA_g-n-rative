@@ -33,8 +33,11 @@ export const api = {
 
   // --- RAG (base de connaissances IIT Sfax) ---
   ragStatus: () => request('/api/rag/status'),
+  ragDepartments: () => request('/api/rag/departments'),
+  ragDocuments: () => request('/api/rag/documents'),
   ragChat: (message, conversation_id) => request('/api/rag/chat', { method: 'POST', body: JSON.stringify({ message, conversation_id }) }),
   ragChatGuest: (message) => request('/api/rag/chat/guest', { method: 'POST', body: JSON.stringify({ message }) }),
+  ragRebuild: () => request('/api/rag/rebuild', { method: 'POST' }),
 }
 
 export function saveSession(session) {

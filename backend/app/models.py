@@ -125,3 +125,5 @@ class Appointment(Base):
     )
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(String(35), default="requested")
+
+

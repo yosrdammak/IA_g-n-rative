@@ -208,6 +208,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Local RAG vector index
+backend/chroma_agentic/
+
 # PyPI configuration file
 .pypirc
 

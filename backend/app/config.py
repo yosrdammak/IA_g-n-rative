@@ -18,3 +18,10 @@ CORS_ORIGINS = [
     ).split(",")
     if value.strip()
 ]
+RAG_STORAGE_DIR = Path(os.getenv("RAG_STORAGE_DIR", "/data/rag"))
+RAG_MAX_UPLOAD_BYTES = int(os.getenv("RAG_MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
+RAG_API_KEY = os.getenv("RAG_API_KEY", "")
+RAG_URL = os.getenv("RAG_URL", "").rstrip("/")
+RAG_RELOAD_SECRET = os.getenv("RAG_RELOAD_SECRET", "")
+RAG_RELOAD_DEBOUNCE_SECONDS = float(os.getenv("RAG_RELOAD_DEBOUNCE_SECONDS", "3"))
+RAG_RELOAD_TIMEOUT_SECONDS = float(os.getenv("RAG_RELOAD_TIMEOUT_SECONDS", "300"))

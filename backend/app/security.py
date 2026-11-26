@@ -59,3 +59,9 @@ def staff(user: User = Depends(current_user)):
     ):
         raise HTTPException(403, "Accès réservé au personnel")
     return user
+
+
+def admin_user(user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Accès réservé aux administrateurs")
+    return user
